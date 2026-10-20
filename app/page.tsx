@@ -215,6 +215,7 @@ export default function DreamFrameHero() {
   const marqueeReveal = useScrollReveal(0.1);
   const bentoReveal = useScrollReveal(0.08);
   const creatorReveal = useScrollReveal(0.08);
+  const finaleReveal = useScrollReveal(0.08);
 
   const getFrameSrc = (index: number) => {
     const pad = String(index).padStart(3, "0");
@@ -1285,6 +1286,98 @@ export default function DreamFrameHero() {
             </div>
           </div>
         </section>
+
+        {/* ═══════════════════════════════════════════════════════════════════
+            CHAPTER 04 — THE GRAND FINALE (الفصل الرابع: ختام الرحلة والبداية)
+            ═══════════════════════════════════════════════════════════════════ */}
+        <section
+          ref={finaleReveal.ref}
+          className={`reveal-section ${finaleReveal.revealed ? 'revealed' : ''} relative z-10 w-full py-28 sm:py-36 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto`}
+        >
+          {/* Atmospheric glow */}
+          <div className="pointer-events-none absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[350px] bg-[radial-gradient(ellipse_at_center,rgba(255,85,0,0.08),transparent_70%)] blur-3xl" />
+
+          <div className="relative z-10 rounded-3xl bg-zinc-950/70 border border-white/[0.08] p-8 sm:p-14 lg:p-20 text-center overflow-hidden backdrop-blur-2xl shadow-[0_20px_80px_rgba(0,0,0,0.8),inset_0_1px_0_0_rgba(255,255,255,0.1)]">
+            
+            <span className="section-chapter-number">الفصل الرابع والأخير</span>
+            <h2 className="section-narrative max-w-3xl mx-auto">
+              ابدأ في كتابة <span className="accent">قصتك الرقمية</span> القادمة
+            </h2>
+            <p className="mt-4 text-zinc-400 font-light text-sm sm:text-base max-w-xl mx-auto leading-relaxed">
+              انضم إلى آلاف المبدعين والمهندسين الذين يعيدون ابتكار التجربة الرقمية مع دريم فريم AI.
+            </p>
+
+            {/* Action buttons */}
+            <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
+              <button
+                onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+                className="hero-cta"
+              >
+                <span>ابدأ الآن مجاناً</span>
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M5 12h14M12 5l7 7-7 7" />
+                </svg>
+              </button>
+
+              <button
+                onClick={() => {
+                  const el = document.getElementById('chapter-tech');
+                  el?.scrollIntoView({ behavior: 'smooth' });
+                }}
+                className="px-6 py-3 rounded-full text-xs sm:text-sm font-medium text-zinc-300 border border-white/10 hover:border-white/30 hover:text-white transition-all bg-white/[0.03] hover:bg-white/[0.08]"
+              >
+                استكشف منظومة الأدوات
+              </button>
+            </div>
+
+            {/* Metrics ribbon */}
+            <div className="mt-14 pt-10 border-t border-white/[0.06] grid grid-cols-2 sm:grid-cols-4 gap-6 max-w-3xl mx-auto">
+              <div>
+                <div className="text-2xl sm:text-3xl font-mono text-white font-semibold">150+</div>
+                <div className="text-[11px] text-zinc-500 mt-1 font-mono">إطار سينمائي متزامن</div>
+              </div>
+              <div>
+                <div className="text-2xl sm:text-3xl font-mono text-amber-500 font-semibold">&lt; 30s</div>
+                <div className="text-[11px] text-zinc-500 mt-1 font-mono">زمن توليد النموذج</div>
+              </div>
+              <div>
+                <div className="text-2xl sm:text-3xl font-mono text-white font-semibold">60 FPS</div>
+                <div className="text-[11px] text-zinc-500 mt-1 font-mono">سلاسة العرض والتفاعل</div>
+              </div>
+              <div>
+                <div className="text-2xl sm:text-3xl font-mono text-emerald-400 font-semibold">99.98%</div>
+                <div className="text-[11px] text-zinc-500 mt-1 font-mono">استقرار الأداء والجاهزية</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ═══════════════════════════════════════════════════════════════════
+            FOOTER — Unified cinematic footer
+            ═══════════════════════════════════════════════════════════════════ */}
+        <footer className="relative z-10 w-full border-t border-white/[0.06] bg-black/90 backdrop-blur-md py-12 px-4 sm:px-6 lg:px-8">
+          <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-6">
+            <div className="flex items-center gap-3">
+              <div className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse" />
+              <span className="font-medium tracking-wide text-sm text-white">دريم فريم AI</span>
+              <span className="text-zinc-600 text-xs font-mono">|</span>
+              <span className="text-zinc-400 text-xs font-light">نصنع المستحيل في كل بكسل</span>
+            </div>
+
+            <div className="flex items-center gap-6 text-xs text-zinc-400 font-mono">
+              <button
+                onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+                className="hover:text-amber-400 transition-colors flex items-center gap-1.5"
+              >
+                <span>العودة للبداية</span>
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M18 15l-6-6-6 6" />
+                </svg>
+              </button>
+              <span>© {new Date().getFullYear()} دريم فريم. جميع الحقوق محفوظة.</span>
+            </div>
+          </div>
+        </footer>
       </div>
     </div>
   );
