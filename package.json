@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "frames:convert": "python3 scripts/convert_frames_to_webp.py"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.9",
