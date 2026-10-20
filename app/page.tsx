@@ -2,59 +2,49 @@
 
 import { useEffect, useRef, useState } from "react";
 
-const TOTAL_FRAMES = 150;
-const FIRST_PRELOAD_COUNT = 20;
-
 type ChapterTheme = "monochrome" | "warm" | "premium";
 
 type StoryChapter = {
   id: string;
   label: string;
-  badge: string;
-  headline: string;
+  title: string;
   summary: string;
-  detail: string;
   theme: ChapterTheme;
   start: number;
   end: number;
 };
 
+const TOTAL_FRAMES = 150;
+const FIRST_PRELOAD_COUNT = 20;
+const MAX_PRELOAD_WORKERS = 6;
+
 const STORY_CHAPTERS: StoryChapter[] = [
   {
     id: "who-i-was",
-    label: "Chapter 01",
-    badge: "Who I was",
-    headline: "A quiet beginning with a sharp point of view.",
+    label: "Chapter 1",
+    title: "Who I was",
     summary:
-      "Editorial, minimal, and rooted in craft. The story starts in monochrome with a single yellow accent and a sense of intention.",
-    detail:
-      "I began with curiosity, patience, and the instinct to keep refining the work until it felt honest and precise.",
+      "A quiet editorial opening shaped by patience, discipline, and a clear point of view.",
     theme: "monochrome",
     start: 0,
     end: 0.34,
   },
   {
     id: "who-i-became",
-    label: "Chapter 02",
-    badge: "Who I became",
-    headline: "Soft motion, playful energy, and a stronger creative voice.",
+    label: "Chapter 2",
+    title: "Who I became",
     summary:
-      "This is the chapter where process becomes personality. Rounded typography, green warmth, and gentle spring motion reflect a more expressive identity.",
-    detail:
-      "I learned to turn experimentation into systems, and expertise into product experiences that feel human and alive.",
+      "A warmer, more expressive middle chapter where process turns into personality.",
     theme: "warm",
     start: 0.34,
     end: 0.67,
   },
   {
     id: "what-i-build",
-    label: "Chapter 03",
-    badge: "What I build",
-    headline: "Premium products that feel cinematic and intentional.",
+    label: "Chapter 3",
+    title: "What I build",
     summary:
-      "The final chapter brings marble neutrals, gold accents, and a refined visual language for the work I create today.",
-    detail:
-      "I build digital experiences that balance clarity, emotion, and performance to help ideas feel as strong as they look.",
+      "A premium final chapter focused on craft, clarity, and the work I create today.",
     theme: "premium",
     start: 0.67,
     end: 1,
@@ -63,6 +53,12 @@ const STORY_CHAPTERS: StoryChapter[] = [
 
 const clamp = (value: number, min: number, max: number) =>
   Math.min(Math.max(value, min), max);
+
+const getFrameSrc = (index: number) =>
+  `/output_frames_webp/frame_${String(index).padStart(3, "0")}.webp`;
+
+const getFallbackFrameSrc = (index: number) =>
+  `/output_frames/frame_${String(index).padStart(3, "0")}.png`;
 
 export default function HomePage() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -75,27 +71,16 @@ export default function HomePage() {
     Array(TOTAL_FRAMES + 1).fill(null),
   );
   const loadedFramesRef = useRef<Set<number>>(new Set());
-  const currentFrameRef = useRef(1);
   const targetFrameRef = useRef(1);
-  const lastFrameRef = useRef(-1);
+  const currentFrameRef = useRef(1);
+  const lastDrawnFrameRef = useRef(-1);
   const mountedRef = useRef(false);
 
-  const activeChapter = STORY_CHAPTERS[activeChapterIndex] ?? STORY_CHAPTERS[0];
-  const currentTheme = activeChapter.theme;
-
-  const getFrameSrc = (index: number) => {
-    const pad = String(index).padStart(3, "0");
-    return `/output_frames_webp/frame_${pad}.webp`;
-  };
-
-  const getFallbackFrameSrc = (index: number) => {
-    const pad = String(index).padStart(3, "0");
-    return `/output_frames/frame_${pad}.png`;
-  };
+  const activeChapter =
+    STORY_CHAPTERS[activeChapterIndex] ?? STORY_CHAPTERS[0];
 
   useEffect(() => {
     mountedRef.current = true;
-
     const canvas = canvasRef.current;
     if (!canvas) return;
 
@@ -160,12 +145,12 @@ export default function HomePage() {
         }
       }
 
-      if (!force && chosenFrame === lastFrameRef.current) return;
+      if (!force && chosenFrame === lastDrawnFrameRef.current) return;
 
       const img = imagesRef.current[chosenFrame];
       if (img && img.complete && img.naturalWidth > 0) {
         drawImageCover(img);
-        lastFrameRef.current = chosenFrame;
+        lastDrawnFrameRef.current = chosenFrame;
       }
     };
 
@@ -194,9 +179,10 @@ export default function HomePage() {
       setActiveChapterIndex(nextIndex);
     };
 
-    const preloadImage = (index: number): Promise<void> =>
+    const preloadFrame = (index: number): Promise<void> =>
       new Promise((resolve) => {
-        if (imagesRef.current[index]) {
+        const existing = imagesRef.current[index];
+        if (existing) {
           resolve();
           return;
         }
@@ -228,15 +214,25 @@ export default function HomePage() {
         };
       });
 
-    const preloadInitialFrames = async () => {
-      for (let index = 1; index <= FIRST_PRELOAD_COUNT; index += 1) {
-        await preloadImage(index);
-      }
+    const preloadFrames = async () => {
+      const initialFrames = Array.from({ length: FIRST_PRELOAD_COUNT }, (_, index) => index + 1);
+      await Promise.all(initialFrames.map((frame) => preloadFrame(frame)));
       setIsReady(true);
 
-      for (let index = FIRST_PRELOAD_COUNT + 1; index <= TOTAL_FRAMES; index += 1) {
-        void preloadImage(index);
-      }
+      const remainingFrames = Array.from(
+        { length: TOTAL_FRAMES - FIRST_PRELOAD_COUNT },
+        (_, index) => index + FIRST_PRELOAD_COUNT + 1,
+      );
+
+      let workerIndex = 0;
+      const workers = Array.from({ length: Math.min(MAX_PRELOAD_WORKERS, remainingFrames.length) }, async () => {
+        while (workerIndex < remainingFrames.length) {
+          const currentIndex = remainingFrames[workerIndex++];
+          await preloadFrame(currentIndex);
+        }
+      });
+
+      await Promise.all(workers);
     };
 
     const lerp = (start: number, end: number, amount: number) =>
@@ -244,6 +240,10 @@ export default function HomePage() {
 
     const animationLoop = () => {
       if (!mountedRef.current) return;
+      if (document.hidden) {
+        window.requestAnimationFrame(animationLoop);
+        return;
+      }
 
       const target = targetFrameRef.current;
       const current = currentFrameRef.current;
@@ -265,7 +265,7 @@ export default function HomePage() {
       window.requestAnimationFrame(animationLoop);
     };
 
-    const resizeCanvas = () => {
+    const handleResize = () => {
       const width = window.innerWidth;
       const height = window.innerHeight;
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -275,39 +275,42 @@ export default function HomePage() {
       canvas.style.width = `${width}px`;
       canvas.style.height = `${height}px`;
       renderFrame(Math.round(currentFrameRef.current), true);
-    };
-
-    resizeCanvas();
-    updateScrollProgress();
-    void preloadInitialFrames();
-    window.requestAnimationFrame(animationLoop);
-
-    const handleScroll = () => updateScrollProgress();
-    const handleResize = () => {
-      resizeCanvas();
       updateScrollProgress();
     };
 
+    handleResize();
+    updateScrollProgress();
+    void preloadFrames();
+    window.requestAnimationFrame(animationLoop);
+
+    const handleScroll = () => updateScrollProgress();
+
     window.addEventListener("scroll", handleScroll, { passive: true });
     window.addEventListener("resize", handleResize, { passive: true });
+    document.addEventListener("visibilitychange", updateScrollProgress);
 
     return () => {
       mountedRef.current = false;
       window.removeEventListener("scroll", handleScroll);
       window.removeEventListener("resize", handleResize);
+      document.removeEventListener("visibilitychange", updateScrollProgress);
       reducedMotionQuery.removeEventListener("change", handleMotionChange);
     };
   }, []);
 
+  const chapterProgress =
+    (scrollProgress - activeChapter.start) /
+    Math.max(activeChapter.end - activeChapter.start, 0.0001);
+
   return (
-    <main className="story-app" data-theme={currentTheme}>
+    <main className="story-app" data-theme={activeChapter.theme}>
       <div className="top-progress" aria-live="polite">
         <div className="progress-track">
           <span style={{ transform: `scaleX(${scrollProgress})` }} />
         </div>
         <div className="chapter-pill">
           <span className="pillar-dot" />
-          {activeChapter.badge}
+          {activeChapter.label}
         </div>
       </div>
 
@@ -316,10 +319,15 @@ export default function HomePage() {
           <canvas ref={canvasRef} className="story-canvas" aria-hidden="true" />
           <div className="story-vignette" />
           <div className="story-noise" />
+          <div className="story-grid" />
 
-          <div className="hero-copy" style={{ opacity: isReady ? 1 : 0.75 }}>
-            <p className="eyebrow">{activeChapter.label}</p>
-            <h1>{activeChapter.headline}</h1>
+          <div
+            className="hero-copy"
+            style={{ opacity: isReady ? 1 : 0.8 }}
+            key={activeChapter.id}
+          >
+            <span className="eyebrow">{activeChapter.label}</span>
+            <h1>{activeChapter.title}</h1>
             <div className="divider" />
             <p className="lede">{activeChapter.summary}</p>
           </div>
@@ -328,22 +336,35 @@ export default function HomePage() {
             {STORY_CHAPTERS.map((chapter, chapterIndex) => (
               <div
                 key={chapter.id}
-                className={chapterIndex === activeChapterIndex ? "chapter-chip active" : "chapter-chip"}
+                className={
+                  chapterIndex === activeChapterIndex ? "chapter-chip active" : "chapter-chip"
+                }
               >
-                <span>{chapter.label}</span>
+                {chapter.label}
               </div>
             ))}
+          </div>
+
+          <div
+            className="scroll-cue"
+            aria-hidden="true"
+            style={{ opacity: scrollProgress < 0.05 ? 1 : 0 }}
+          >
+            <span>Scroll</span>
+            <div className="scroll-cue-line">
+              <i />
+            </div>
           </div>
         </div>
       </section>
 
-      <section className="story-brief">
-        <div className="brief-card">
-          <p className="section-kicker">Story arc</p>
-          <h2>From quiet beginnings to a recognizable creative voice.</h2>
+      <section className="story-meta">
+        <div className="story-meta-card">
+          <p className="section-kicker">Narrative</p>
+          <h2>Immersion first, interface second.</h2>
           <p>
-            This narrative moves through three distinct chapter states: a minimal editorial start,
-            a playful growth period, and a premium final chapter that presents what I build today.
+            The story begins in quiet monochrome, opens into warmth and motion,
+            and resolves into a premium, cinematic finish.
           </p>
         </div>
       </section>
@@ -352,57 +373,27 @@ export default function HomePage() {
         {STORY_CHAPTERS.map((chapter, chapterIndex) => (
           <article
             key={chapter.id}
-            className={chapterIndex === activeChapterIndex ? "story-panel active" : "story-panel"}
+            className={
+              chapterIndex === activeChapterIndex ? "story-panel active" : "story-panel"
+            }
             data-theme={chapter.theme}
           >
             <span className="panel-index">{chapter.label}</span>
-            <h3>{chapter.badge}</h3>
-            <p>{chapter.detail}</p>
+            <h3>{chapter.title}</h3>
+            <p>{chapter.summary}</p>
           </article>
         ))}
       </section>
 
-      <section className="portfolio-showcase">
-        <div className="showcase-intro">
-          <p className="section-kicker">Creative direction</p>
-          <h2>One story, three moods, one clear visual language.</h2>
-        </div>
-
-        <div className="showcase-grid">
-          <div className="showcase-card mono">
-            <span className="card-label">Editorial</span>
-            <h3>Minimal pacing with a strong point of view.</h3>
-            <p>
-              The first chapter stays disciplined, text-led, and focused on quiet confidence.
-            </p>
-          </div>
-
-          <div className="showcase-card warm">
-            <span className="card-label">Playful</span>
-            <h3>Warm color and softer transitions.</h3>
-            <p>
-              The middle chapter grows into motion, humor, and personality without losing clarity.
-            </p>
-          </div>
-
-          <div className="showcase-card premium">
-            <span className="card-label">Premium</span>
-            <h3>Marble, gold, and a final call to action.</h3>
-            <p>
-              The closing chapter pulls everything together with a confident, cinematic finish.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      <section className="cta-section">
-        <div className="cta-card">
-          <p className="section-kicker">Now</p>
-          <h2>Design with intent, craft with rhythm, and build with clarity.</h2>
+      <section className="story-cta-wrap">
+        <div className="story-cta-card">
+          <p className="section-kicker">Next</p>
+          <h2>Build a story people feel, not just read.</h2>
           <p>
-            I create thoughtful digital experiences that feel premium from the first frame to the final interaction.
+            The frame sequence remains the main visual event. The interface is kept
+            restrained so the pacing, motion, and typography carry the narrative.
           </p>
-          <div className="cta-actions">
+          <div className="story-actions">
             <a href="https://github.com/kararha" target="_blank" rel="noreferrer">
               Portfolio
             </a>
@@ -410,6 +401,16 @@ export default function HomePage() {
           </div>
         </div>
       </section>
+
+      <div className="chapter-progress" aria-hidden="true">
+        <span
+          className="chapter-progress-fill"
+          style={{
+            transform: `scaleX(${chapterProgress})`,
+            opacity: chapterProgress > 0 ? 1 : 0,
+          }}
+        />
+      </div>
     </main>
   );
 }
