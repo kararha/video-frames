@@ -7,16 +7,14 @@ const ModelViewer = dynamic(() => import("./ModelViewer"), {
   ssr: false,
   loading: () => (
     <div
-      className="w-full rounded-3xl flex items-center justify-center"
+      className="w-full rounded-3xl flex items-center justify-center bg-zinc-950/80 border border-white/[0.08]"
       style={{
         aspectRatio: '1 / 1',
-        backgroundColor: 'rgba(255,255,255,0.5)',
-        boxShadow: '0 1px 3px rgba(0,0,0,0.06), 0 8px 24px rgba(0,0,0,0.04)',
       }}
     >
       <div
         className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin"
-        style={{ borderColor: 'rgba(0,0,0,0.1)', borderTopColor: '#ff5500' }}
+        style={{ borderColor: 'rgba(255,255,255,0.1)', borderTopColor: '#ff5500' }}
       />
     </div>
   ),
@@ -926,34 +924,26 @@ export default function DreamFrameHero() {
         </section>
 
         {/* ═══════════════════════════════════════════════════════════════════
-            CHAPTER 03 — 3D MODEL CREATOR
+            CHAPTER 03 — 3D MODEL CREATOR (الفصل الثالث: استوديو النماذج التوليدي)
             ═══════════════════════════════════════════════════════════════════ */}
         <section
           id="model-creator"
           ref={creatorReveal.ref}
           aria-label="أداة تصميم النماذج ثلاثية الأبعاد"
-          className={`reveal-section ${creatorReveal.revealed ? 'revealed' : ''} relative z-20 w-full -mt-10`}
-          style={{ backgroundColor: '#E8E8EA' }}
+          className={`reveal-section ${creatorReveal.revealed ? 'revealed' : ''} relative z-10 w-full py-28 sm:py-36 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto border-t border-white/[0.04]`}
         >
-          {/* Rounded overlay cap */}
-          <div
-            className="absolute inset-x-0 top-0 h-12 pointer-events-none"
-            style={{
-              backgroundColor: '#E8E8EA',
-              borderRadius: '40px 40px 0 0',
-              transform: 'translateY(-100%)',
-            }}
-          />
+          {/* Subtle ambient glow */}
+          <div className="pointer-events-none absolute top-1/3 right-10 w-[600px] h-[400px] bg-[radial-gradient(ellipse_at_center,rgba(255,85,0,0.06),transparent_70%)] blur-3xl" />
 
-          <div className="relative w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 sm:pt-32 pb-28 sm:pb-36">
+          <div className="relative w-full max-w-7xl mx-auto">
 
             {/* Narrative Header */}
             <div className="mb-16 sm:mb-20 max-w-2xl">
-              <span className="section-chapter-number" style={{ color: 'rgba(0,0,0,0.25)' }}>الفصل الثالث</span>
-              <h2 className="section-narrative" style={{ color: '#18181b' }}>
+              <span className="section-chapter-number">الفصل الثالث</span>
+              <h2 className="section-narrative">
                 من <span className="accent">وصف نصي</span> إلى نموذج ثلاثي الأبعاد
               </h2>
-              <p className="mt-4 text-sm sm:text-base font-light leading-relaxed" style={{ color: '#52525b' }}>
+              <p className="mt-4 text-zinc-400 font-light text-sm sm:text-base leading-relaxed">
                 صف ما تتخيله بدقة — يتولى المحرك بناء الهيكل الشبكي، وتوليد الخامات والتصدير في ثوانٍ معدودة.
               </p>
             </div>
@@ -967,56 +957,31 @@ export default function DreamFrameHero() {
               </div>
 
               {/* CARD 1: Prompt Input */}
-              <div
-                className="light-card group relative rounded-3xl p-6 sm:p-7 flex flex-col justify-between overflow-hidden col-span-1 lg:col-start-1 lg:row-start-1 lg:row-span-2"
-                style={{
-                  backgroundColor: '#ffffff',
-                  boxShadow: '0 1px 3px rgba(0,0,0,0.06), 0 8px 24px rgba(0,0,0,0.04)',
-                }}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-mono uppercase tracking-wider" style={{ color: '#71717a' }}>
+              <div className="bento-card group relative rounded-3xl bg-zinc-950/60 border border-white/[0.08] hover:border-amber-500/35 p-6 sm:p-7 flex flex-col justify-between overflow-hidden backdrop-blur-xl shadow-[inset_0_1px_0_0_rgba(255,255,255,0.1)] col-span-1 lg:col-start-1 lg:row-start-1 lg:row-span-2">
+                <div className="pointer-events-none absolute -bottom-10 -right-10 w-44 h-44 rounded-full bg-amber-500/[0.04] blur-2xl group-hover:bg-amber-500/[0.1] transition-colors duration-500" />
+
+                <div className="flex items-center justify-between z-10">
+                  <span className="text-[11px] font-mono text-zinc-400 uppercase tracking-wider">
                     الوصف النصي (Prompt)
                   </span>
-                  <span
-                    className="text-[10px] font-mono px-2.5 py-0.5 rounded-full"
-                    style={{
-                      color: '#ff5500',
-                      backgroundColor: 'rgba(255,85,0,0.08)',
-                      border: '1px solid rgba(255,85,0,0.18)',
-                    }}
-                  >
+                  <span className="inline-flex items-center gap-1.5 text-[10px] font-mono text-amber-400 bg-amber-950/40 border border-amber-800/40 px-2.5 py-0.5 rounded-full">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
                     محرك AI الإصدار 3
                   </span>
                 </div>
 
-                <div className="my-6 flex-1 flex flex-col">
-                  <div
-                    className="flex-1 rounded-2xl p-4 font-mono text-sm leading-relaxed"
-                    style={{
-                      backgroundColor: '#f4f4f5',
-                      border: '1px solid rgba(0,0,0,0.06)',
-                      color: '#3f3f46',
-                    }}
-                  >
-                    <span style={{ color: '#ff5500' }}>&gt;</span>{' '}
+                <div className="my-6 flex-1 flex flex-col z-10">
+                  <div className="flex-1 rounded-2xl p-4 font-mono text-xs sm:text-sm leading-relaxed bg-black/60 border border-white/[0.08] text-zinc-300">
+                    <span className="text-amber-500 font-bold">&gt;</span>{' '}
                     بيت شجري أيزومتري مصغر بسقف مغطى بالطحالب، ونوافذ تشع بضوء دافئ، محاط بيرقات مضيئة — نموذج ثلاثي الأبعاد جاهز للألعاب…
-                    <span
-                      className="inline-block w-2 h-4 mr-1 align-middle animate-pulse rounded-sm"
-                      style={{ backgroundColor: '#ff5500' }}
-                    />
+                    <span className="inline-block w-2 h-4 mr-1 align-middle bg-amber-500 animate-pulse rounded-sm" />
                   </div>
 
                   <div className="flex flex-wrap gap-2 mt-4">
                     {['اقتراح عشوائي', 'تعزيز التفاصيل', 'تبسيط النموذج'].map((label) => (
                       <button
                         key={label}
-                        className="text-[11px] font-mono px-3 py-1 rounded-full transition-colors duration-200"
-                        style={{
-                          color: '#52525b',
-                          backgroundColor: '#f4f4f5',
-                          border: '1px solid rgba(0,0,0,0.08)',
-                        }}
+                        className="text-[11px] font-mono px-3 py-1 rounded-full text-zinc-400 bg-zinc-900/80 border border-white/[0.08] hover:text-white hover:border-amber-500/30 transition-colors"
                       >
                         {label}
                       </button>
@@ -1024,33 +989,25 @@ export default function DreamFrameHero() {
                   </div>
                 </div>
 
-                <button
-                  className="w-full py-3 rounded-xl text-sm font-medium tracking-wide transition-opacity duration-200 hover:opacity-90"
-                  style={{ backgroundColor: '#ff5500', color: '#ffffff' }}
-                >
+                <button className="w-full py-3 rounded-xl text-sm font-medium tracking-wide bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white shadow-[0_0_25px_rgba(255,85,0,0.3)] hover:shadow-[0_0_35px_rgba(255,85,0,0.5)] transition-all z-10">
                   توليد النموذج ثلاثي الأبعاد
                 </button>
               </div>
 
               {/* CARD 2: Style Presets */}
-              <div
-                className="light-card group relative rounded-3xl p-6 sm:p-7 flex flex-col justify-between overflow-hidden col-span-1 lg:col-start-4 lg:row-start-1"
-                style={{
-                  backgroundColor: '#ffffff',
-                  boxShadow: '0 1px 3px rgba(0,0,0,0.06), 0 8px 24px rgba(0,0,0,0.04)',
-                }}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-mono uppercase tracking-wider" style={{ color: '#71717a' }}>
+              <div className="bento-card group relative rounded-3xl bg-zinc-950/60 border border-white/[0.08] hover:border-amber-500/35 p-6 sm:p-7 flex flex-col justify-between overflow-hidden backdrop-blur-xl shadow-[inset_0_1px_0_0_rgba(255,255,255,0.1)] col-span-1 lg:col-start-4 lg:row-start-1">
+                <div className="flex items-center justify-between z-10">
+                  <span className="text-[11px] font-mono text-zinc-400 uppercase tracking-wider">
                     النمط الفني
                   </span>
+                  <span className="text-[10px] font-mono text-zinc-500">اختر النمط</span>
                 </div>
 
-                <div className="my-5 grid grid-cols-3 gap-2">
+                <div className="my-5 grid grid-cols-3 gap-2 z-10">
                   {[
                     {
                       name: 'واقعي', active: false, icon: (
-                        <svg viewBox="0 0 24 24" className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                        <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                           <circle cx="12" cy="12" r="10" />
                           <path d="M12 2a14.5 14.5 0 0 0 0 20M12 2a14.5 14.5 0 0 1 0 20M2 12h20" />
                         </svg>
@@ -1058,14 +1015,14 @@ export default function DreamFrameHero() {
                     },
                     {
                       name: 'فني مميز', active: true, icon: (
-                        <svg viewBox="0 0 24 24" className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                        <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                           <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
                         </svg>
                       )
                     },
                     {
                       name: 'بولي منخفض', active: false, icon: (
-                        <svg viewBox="0 0 24 24" className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                        <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                           <path d="M12 2L2 19h20L12 2z" />
                           <path d="M12 2l5 10H7l5-10z" />
                         </svg>
@@ -1074,12 +1031,11 @@ export default function DreamFrameHero() {
                   ].map((style) => (
                     <div
                       key={style.name}
-                      className="flex flex-col items-center gap-2 p-3 rounded-xl text-center transition-colors duration-200"
-                      style={{
-                        backgroundColor: style.active ? 'rgba(255,85,0,0.07)' : '#f4f4f5',
-                        border: style.active ? '1.5px solid rgba(255,85,0,0.35)' : '1px solid transparent',
-                        color: style.active ? '#ff5500' : '#71717a',
-                      }}
+                      className={`flex flex-col items-center gap-2 p-3 rounded-2xl text-center transition-all duration-200 cursor-pointer ${
+                        style.active
+                          ? 'bg-amber-500/15 border border-amber-500/40 text-amber-400 shadow-[0_0_15px_rgba(255,85,0,0.15)]'
+                          : 'bg-zinc-900/60 border border-white/[0.06] text-zinc-400 hover:text-zinc-200 hover:border-white/15'
+                      }`}
                     >
                       {style.icon}
                       <span className="text-[10px] font-mono">{style.name}</span>
@@ -1087,34 +1043,28 @@ export default function DreamFrameHero() {
                   ))}
                 </div>
 
-                <div>
-                  <h3 className="text-base font-normal tracking-tight" style={{ color: '#18181b' }}>
+                <div className="z-10">
+                  <h3 className="text-base font-normal tracking-tight text-white group-hover:text-amber-400 transition-colors">
                     التوجيه الفني
                   </h3>
-                  <p className="mt-1 text-xs font-light leading-relaxed" style={{ color: '#71717a' }}>
+                  <p className="mt-1 text-xs font-light leading-relaxed text-zinc-400">
                     حدد الطابع البصري لتوجيه كثافة الهيكل الشبكي وأسلوب التظليل.
                   </p>
                 </div>
               </div>
 
               {/* CARD 3: Materials */}
-              <div
-                className="light-card group relative rounded-3xl p-6 sm:p-7 flex flex-col justify-between overflow-hidden col-span-1 lg:col-start-4 lg:row-start-2"
-                style={{
-                  backgroundColor: '#ffffff',
-                  boxShadow: '0 1px 3px rgba(0,0,0,0.06), 0 8px 24px rgba(0,0,0,0.04)',
-                }}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-mono uppercase tracking-wider" style={{ color: '#71717a' }}>
+              <div className="bento-card group relative rounded-3xl bg-zinc-950/60 border border-white/[0.08] hover:border-amber-500/35 p-6 sm:p-7 flex flex-col justify-between overflow-hidden backdrop-blur-xl shadow-[inset_0_1px_0_0_rgba(255,255,255,0.1)] col-span-1 lg:col-start-4 lg:row-start-2">
+                <div className="flex items-center justify-between z-10">
+                  <span className="text-[11px] font-mono text-zinc-400 uppercase tracking-wider">
                     الخامة السطحية
                   </span>
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full" style={{ color: '#52525b', backgroundColor: '#f4f4f5' }}>
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full text-zinc-400 bg-zinc-900 border border-white/10">
                     خامات واقعية PBR
                   </span>
                 </div>
 
-                <div className="my-5 flex flex-col gap-2.5">
+                <div className="my-5 flex flex-col gap-2 z-10">
                   {[
                     { name: 'طين مطفي (Matte Clay)', color: '#d4c8b8', active: false },
                     { name: 'معدن مصقول (Brushed Metal)', color: '#9ca3af', active: true },
@@ -1123,31 +1073,31 @@ export default function DreamFrameHero() {
                   ].map((mat) => (
                     <div
                       key={mat.name}
-                      className="flex items-center gap-3 px-3 py-2 rounded-xl transition-colors duration-200"
-                      style={{
-                        backgroundColor: mat.active ? 'rgba(255,85,0,0.06)' : 'transparent',
-                        border: mat.active ? '1px solid rgba(255,85,0,0.25)' : '1px solid rgba(0,0,0,0.06)',
-                      }}
+                      className={`flex items-center gap-3 px-3 py-2 rounded-xl transition-all duration-200 cursor-pointer ${
+                        mat.active
+                          ? 'bg-amber-500/10 border border-amber-500/30'
+                          : 'bg-zinc-900/40 border border-white/[0.04] hover:border-white/10'
+                      }`}
                     >
                       <span
-                        className="w-5 h-5 rounded-full shrink-0 border"
+                        className={`w-4 h-4 rounded-full shrink-0 border ${mat.active ? 'ring-2 ring-amber-500/50' : ''}`}
                         style={{
                           backgroundColor: mat.color,
-                          borderColor: mat.active ? '#ff5500' : 'rgba(0,0,0,0.08)',
+                          borderColor: mat.active ? '#ff5500' : 'rgba(255,255,255,0.2)',
                         }}
                       />
-                      <span className="text-xs font-mono" style={{ color: mat.active ? '#ff5500' : '#52525b' }}>
+                      <span className={`text-xs font-mono ${mat.active ? 'text-amber-400 font-medium' : 'text-zinc-400'}`}>
                         {mat.name}
                       </span>
                     </div>
                   ))}
                 </div>
 
-                <div>
-                  <h3 className="text-base font-normal tracking-tight" style={{ color: '#18181b' }}>
+                <div className="z-10">
+                  <h3 className="text-base font-normal tracking-tight text-white group-hover:text-amber-400 transition-colors">
                     المظهر واللمسة النهائية
                   </h3>
-                  <p className="mt-1 text-xs font-light leading-relaxed" style={{ color: '#71717a' }}>
+                  <p className="mt-1 text-xs font-light leading-relaxed text-zinc-400">
                     تطبيق خامات تحاكي الواقع الفيزيائي مع خرائط UV مولدة تلقائياً.
                   </p>
                 </div>
@@ -1159,20 +1109,15 @@ export default function DreamFrameHero() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5 lg:gap-6 mt-4 sm:mt-5 lg:mt-6">
 
               {/* CARD 4: Output Formats */}
-              <div
-                className="light-card group relative rounded-3xl p-6 sm:p-7 flex flex-col justify-between overflow-hidden"
-                style={{
-                  backgroundColor: '#ffffff',
-                  boxShadow: '0 1px 3px rgba(0,0,0,0.06), 0 8px 24px rgba(0,0,0,0.04)',
-                }}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-mono uppercase tracking-wider" style={{ color: '#71717a' }}>
+              <div className="bento-card group relative rounded-3xl bg-zinc-950/60 border border-white/[0.08] hover:border-amber-500/35 p-6 sm:p-7 flex flex-col justify-between overflow-hidden backdrop-blur-xl shadow-[inset_0_1px_0_0_rgba(255,255,255,0.1)]">
+                <div className="flex items-center justify-between z-10">
+                  <span className="text-[11px] font-mono text-zinc-400 uppercase tracking-wider">
                     تصدير النماذج
                   </span>
+                  <span className="text-[10px] font-mono text-zinc-500">جاهز للتنزيل</span>
                 </div>
 
-                <div className="my-5 flex flex-col gap-3">
+                <div className="my-5 flex flex-col gap-2.5 z-10">
                   {[
                     { ext: 'GLB', desc: 'تنسيق glTF ثنائي — جاهز للويب والواقع المعزز', active: true },
                     { ext: 'OBJ', desc: 'تنسيق Wavefront — توافق شامل مع كافة البرامج', active: false },
@@ -1180,64 +1125,49 @@ export default function DreamFrameHero() {
                   ].map((fmt) => (
                     <div
                       key={fmt.ext}
-                      className="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors duration-200"
-                      style={{
-                        backgroundColor: fmt.active ? 'rgba(255,85,0,0.06)' : '#f4f4f5',
-                        border: fmt.active ? '1.5px solid rgba(255,85,0,0.30)' : '1px solid transparent',
-                      }}
+                      className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all duration-200 cursor-pointer ${
+                        fmt.active
+                          ? 'bg-amber-500/10 border border-amber-500/35'
+                          : 'bg-zinc-900/50 border border-white/[0.06] hover:border-white/15'
+                      }`}
                     >
                       <span
-                        className="text-xs font-mono font-semibold px-2 py-0.5 rounded-md"
-                        style={{
-                          backgroundColor: fmt.active ? '#ff5500' : '#e4e4e7',
-                          color: fmt.active ? '#ffffff' : '#3f3f46',
-                        }}
+                        className={`text-xs font-mono font-semibold px-2 py-0.5 rounded-md ${
+                          fmt.active ? 'bg-amber-500 text-black' : 'bg-zinc-800 text-zinc-300'
+                        }`}
                       >
                         {fmt.ext}
                       </span>
-                      <span className="text-[11px] font-light" style={{ color: '#52525b' }}>
+                      <span className="text-[11px] font-light text-zinc-400">
                         {fmt.desc}
                       </span>
                     </div>
                   ))}
                 </div>
 
-                <div>
-                  <h3 className="text-base font-normal tracking-tight" style={{ color: '#18181b' }}>
+                <div className="z-10">
+                  <h3 className="text-base font-normal tracking-tight text-white group-hover:text-amber-400 transition-colors">
                     تصدير فوري بنقرة واحدة
                   </h3>
-                  <p className="mt-1 text-xs font-light leading-relaxed" style={{ color: '#71717a' }}>
+                  <p className="mt-1 text-xs font-light leading-relaxed text-zinc-400">
                     تحميل أصول جاهزة للإنتاج والاستخدام المباشر — بدون الحاجة لأي معالجة إضافية.
                   </p>
                 </div>
               </div>
 
               {/* CARD 5: Pipeline */}
-              <div
-                className="light-card group relative rounded-3xl p-6 sm:p-7 flex flex-col justify-between overflow-hidden"
-                style={{
-                  backgroundColor: '#ffffff',
-                  boxShadow: '0 1px 3px rgba(0,0,0,0.06), 0 8px 24px rgba(0,0,0,0.04)',
-                }}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-mono uppercase tracking-wider" style={{ color: '#71717a' }}>
+              <div className="bento-card group relative rounded-3xl bg-zinc-950/60 border border-white/[0.08] hover:border-amber-500/35 p-6 sm:p-7 flex flex-col justify-between overflow-hidden backdrop-blur-xl shadow-[inset_0_1px_0_0_rgba(255,255,255,0.1)]">
+                <div className="flex items-center justify-between z-10">
+                  <span className="text-[11px] font-mono text-zinc-400 uppercase tracking-wider">
                     مراحل المعالجة
                   </span>
-                  <span
-                    className="inline-flex items-center gap-1.5 text-[10px] font-mono px-2.5 py-0.5 rounded-full"
-                    style={{
-                      color: '#16a34a',
-                      backgroundColor: 'rgba(22,163,74,0.08)',
-                      border: '1px solid rgba(22,163,74,0.20)',
-                    }}
-                  >
-                    <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: '#16a34a' }} />
+                  <span className="inline-flex items-center gap-1.5 text-[10px] font-mono text-emerald-400 bg-emerald-950/40 border border-emerald-800/40 px-2.5 py-0.5 rounded-full">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                     جاهز للعمل
                   </span>
                 </div>
 
-                <div className="my-5 flex flex-col gap-3">
+                <div className="my-5 flex flex-col gap-3 z-10">
                   {[
                     { step: '01', label: 'تحليل الوصف النصي', status: 'done' },
                     { step: '02', label: 'توليد الهيكل الشبكي (Mesh)', status: 'active' },
@@ -1247,25 +1177,32 @@ export default function DreamFrameHero() {
                     <div key={s.step} className="flex items-center gap-3">
                       <div className="flex flex-col items-center">
                         <span
-                          className="w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-mono font-semibold"
-                          style={{
-                            backgroundColor: s.status === 'active' ? '#ff5500' : s.status === 'done' ? '#f4f4f5' : '#fafafa',
-                            color: s.status === 'active' ? '#ffffff' : s.status === 'done' ? '#16a34a' : '#a1a1aa',
-                            border: s.status === 'active' ? 'none' : '1px solid rgba(0,0,0,0.06)',
-                            boxShadow: s.status === 'active' ? '0 0 12px rgba(255,85,0,0.3)' : 'none',
-                          }}
+                          className={`w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-mono font-semibold ${
+                            s.status === 'active'
+                              ? 'bg-amber-500 text-black shadow-[0_0_12px_rgba(255,85,0,0.5)]'
+                              : s.status === 'done'
+                              ? 'bg-emerald-950/80 text-emerald-400 border border-emerald-800/40'
+                              : 'bg-zinc-900 text-zinc-500 border border-white/[0.06]'
+                          }`}
                         >
                           {s.status === 'done' ? '✓' : s.step}
                         </span>
                         {i < arr.length - 1 && (
-                          <span className="w-0.5 h-4 mt-1" style={{ backgroundColor: s.status === 'done' ? '#16a34a' : '#e4e4e7' }} />
+                          <span
+                            className={`w-0.5 h-4 mt-1 ${
+                              s.status === 'done' ? 'bg-emerald-500/60' : 'bg-zinc-800'
+                            }`}
+                          />
                         )}
                       </div>
                       <span
-                        className="text-xs font-mono"
-                        style={{
-                          color: s.status === 'active' ? '#ff5500' : s.status === 'done' ? '#52525b' : '#a1a1aa',
-                        }}
+                        className={`text-xs font-mono ${
+                          s.status === 'active'
+                            ? 'text-amber-400 font-medium'
+                            : s.status === 'done'
+                            ? 'text-zinc-300'
+                            : 'text-zinc-500'
+                        }`}
                       >
                         {s.label}
                       </span>
@@ -1273,11 +1210,11 @@ export default function DreamFrameHero() {
                   ))}
                 </div>
 
-                <div>
-                  <h3 className="text-base font-normal tracking-tight" style={{ color: '#18181b' }}>
+                <div className="z-10">
+                  <h3 className="text-base font-normal tracking-tight text-white group-hover:text-amber-400 transition-colors">
                     خط معالجة متكامل من 4 خطوات
                   </h3>
-                  <p className="mt-1 text-xs font-light leading-relaxed" style={{ color: '#71717a' }}>
+                  <p className="mt-1 text-xs font-light leading-relaxed text-zinc-400">
                     الوصف النصي ← الهيكل الشبكي ← الخامات ← التصدير، كل ذلك خلال أقل من 30 ثانية.
                   </p>
                 </div>

@@ -38,13 +38,14 @@ function LoadingFallback() {
 export default function ModelViewer() {
   return (
     <div
-      className="relative w-full rounded-3xl overflow-hidden"
+      className="relative w-full rounded-3xl overflow-hidden bg-zinc-950/80 border border-white/[0.08] backdrop-blur-xl shadow-[inset_0_1px_0_0_rgba(255,255,255,0.1),0_20px_50px_rgba(0,0,0,0.6)] group"
       style={{
         aspectRatio: "1 / 1",
-        backgroundColor: "rgba(255,255,255,0.5)",
-        boxShadow: "0 1px 3px rgba(0,0,0,0.06), 0 8px 24px rgba(0,0,0,0.04)",
       }}
     >
+      {/* Subtle ambient glow behind model */}
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,85,0,0.08),transparent_70%)]" />
+
       {/* Loading spinner overlay */}
       <div
         className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none"
@@ -52,7 +53,7 @@ export default function ModelViewer() {
       >
         <div
           className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin"
-          style={{ borderColor: "rgba(0,0,0,0.1)", borderTopColor: "#ff5500" }}
+          style={{ borderColor: "rgba(255,255,255,0.1)", borderTopColor: "#ff5500" }}
         />
       </div>
 
@@ -66,12 +67,12 @@ export default function ModelViewer() {
           if (el) el.style.display = "none";
         }}
       >
-        <ambientLight intensity={0.6} />
-        <directionalLight position={[5, 8, 5]} intensity={1.2} castShadow />
+        <ambientLight intensity={0.8} />
+        <directionalLight position={[5, 8, 5]} intensity={1.5} castShadow />
         <directionalLight
           position={[-4, 3, -3]}
-          intensity={0.4}
-          color="#ffd4b8"
+          intensity={0.6}
+          color="#ffaa66"
         />
 
         <Suspense fallback={<LoadingFallback />}>
@@ -91,15 +92,10 @@ export default function ModelViewer() {
 
       {/* Drag-to-rotate hint */}
       <div
-        className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-mono"
-        style={{
-          backgroundColor: "rgba(255,255,255,0.8)",
-          color: "#71717a",
-          backdropFilter: "blur(8px)",
-        }}
+        className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-mono bg-black/60 border border-white/10 text-zinc-300 backdrop-blur-md shadow-lg"
       >
         <svg
-          className="w-3 h-3"
+          className="w-3 h-3 text-amber-500"
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"
@@ -111,7 +107,7 @@ export default function ModelViewer() {
           <path d="M19 9l3 3-3 3" />
           <path d="M2 12h20" />
         </svg>
-        اسحب للتدوير ثلاثي الأبعاد
+        <span>اسحب للتدوير ثلاثي الأبعاد</span>
       </div>
     </div>
   );
