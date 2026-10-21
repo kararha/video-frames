@@ -5,6 +5,16 @@ import { Canvas, useFrame } from "@react-three/fiber";
 import { OrbitControls, useGLTF, Environment, Center } from "@react-three/drei";
 import * as THREE from "three";
 
+if (typeof window !== "undefined") {
+  const originalError = console.error;
+  console.error = (...args: unknown[]) => {
+    if (typeof args[0] === "string" && args[0].includes("Couldn't load texture")) {
+      return;
+    }
+    originalError.apply(console, args);
+  };
+}
+
 function Model({ url }: { url: string }) {
   const { scene } = useGLTF(url);
   const groupRef = useRef<THREE.Group>(null);

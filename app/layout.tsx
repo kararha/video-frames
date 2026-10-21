@@ -24,9 +24,9 @@ export default function RootLayout({
       lang="ar"
       dir="rtl"
       suppressHydrationWarning
-      className={`${cairo.variable} h-full antialiased dark`}
+      className={`${cairo.variable} min-h-screen antialiased dark`}
     >
-      <body className="min-h-full flex flex-col bg-black text-white selection:bg-zinc-800 selection:text-white font-sans">
+      <body className="min-h-screen flex flex-col bg-black text-white selection:bg-zinc-800 selection:text-white font-sans">
         {children}
       </body>
     </html>

@@ -1,152 +1,345 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
+import dynamic from "next/dynamic";
 
-type ChapterTheme = "monochrome" | "warm" | "premium";
-
-type StoryChapter = {
-  id: string;
-  label: string;
-  title: string;
-  summary: string;
-  theme: ChapterTheme;
-  start: number;
-  end: number;
-};
+const ModelViewer = dynamic(() => import("./ModelViewer"), {
+  ssr: false,
+  loading: () => (
+    <div
+      className="w-full rounded-3xl flex items-center justify-center bg-zinc-950/80 border border-white/[0.08]"
+      style={{
+        aspectRatio: '1 / 1',
+      }}
+    >
+      <div
+        className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin"
+        style={{ borderColor: 'rgba(255,255,255,0.1)', borderTopColor: '#ff5500' }}
+      />
+    </div>
+  ),
+});
 
 const TOTAL_FRAMES = 150;
-const FIRST_PRELOAD_COUNT = 20;
-const MAX_PRELOAD_WORKERS = 6;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Storytelling Chapter Definitions
+// Each chapter appears at a specific scroll % range over the 150-frame animation
+// ─────────────────────────────────────────────────────────────────────────────
+interface StoryChapter {
+  id: string;
+  startPercent: number; // When this chapter starts appearing (0-100)
+  endPercent: number;   // When this chapter finishes disappearing (0-100)
+  badge?: string;
+  headline: React.ReactNode;
+  subline: string;
+  showCTA?: boolean;
+}
 
 const STORY_CHAPTERS: StoryChapter[] = [
   {
-    id: "who-i-was",
-    label: "Chapter 1",
-    title: "Who I was",
-    summary:
-      "A quiet editorial opening shaped by patience, discipline, and a clear point of view.",
-    theme: "monochrome",
-    start: 0,
-    end: 0.34,
+    id: "ch-intro",
+    startPercent: 0,
+    endPercent: 23,
+    badge: "دريم فريم AI",
+    headline: (
+      <>
+        نصنع <span className="accent">المستحيل</span>
+        <br />
+        في عالم <span className="gold">رقمي</span>
+      </>
+    ),
+    subline: "حيث يلتقي الخيال بالهندسة — نبني تجارب رقمية سينمائية تتحدى التوقعات",
   },
   {
-    id: "who-i-became",
-    label: "Chapter 2",
-    title: "Who I became",
-    summary:
-      "A warmer, more expressive middle chapter where process turns into personality.",
-    theme: "warm",
-    start: 0.34,
-    end: 0.67,
+    id: "ch-vision",
+    startPercent: 20,
+    endPercent: 44,
+    badge: "الرؤية التوليدية",
+    headline: (
+      <>
+        كل <span className="accent">بكسل</span> يروي قصة
+      </>
+    ),
+    subline: "من الفكرة الأولى إلى النموذج النهائي، نحوّل كل خيال إلى تجربة رقمية لا تُنسى",
   },
   {
-    id: "what-i-build",
-    label: "Chapter 3",
-    title: "What I build",
-    summary:
-      "A premium final chapter focused on craft, clarity, and the work I create today.",
-    theme: "premium",
-    start: 0.67,
-    end: 1,
+    id: "ch-tech",
+    startPercent: 41,
+    endPercent: 66,
+    badge: "التقنية الفائقة",
+    headline: (
+      <>
+        ذكاء اصطناعي <span className="accent">فائق</span>
+        <br />
+        بسرعة التفكير
+      </>
+    ),
+    subline: "نماذج انتشار متعددة الوسائط، توليد فوري ثلاثي الأبعاد، وأداء لا يُضاهى",
+  },
+  {
+    id: "ch-craft",
+    startPercent: 63,
+    endPercent: 86,
+    badge: "الحِرفة والابتكار",
+    headline: (
+      <>
+        هندسة <span className="gold">الجيل</span> القادم
+      </>
+    ),
+    subline: "نجمع بين الفن السينمائي والذكاء الهندسي لنبتكر ما كان مستحيلاً بالأمس",
+  },
+  {
+    id: "ch-cta",
+    startPercent: 83,
+    endPercent: 100,
+    badge: "البداية هنا",
+    headline: (
+      <>
+        جاهز لـ<span className="accent">تحويل</span> رؤيتك؟
+      </>
+    ),
+    subline: "انضم الآن وابدأ بتوليد عوالم رقمية ثلاثية الأبعاد بضغطة زر واحدة",
+    showCTA: true,
   },
 ];
 
-const clamp = (value: number, min: number, max: number) =>
-  Math.min(Math.max(value, min), max);
+// ─────────────────────────────────────────────────────────────────────────────
+// Inline SVG Logos (unchanged, monochrome)
+// ─────────────────────────────────────────────────────────────────────────────
+const ReactLogo = () => (
+  <svg className="w-5 h-5 shrink-0" viewBox="-11.5 -10.23174 23 20.46348" fill="currentColor">
+    <circle cx="0" cy="0" r="2.05" />
+    <g stroke="currentColor" strokeWidth="1" fill="none">
+      <ellipse rx="11" ry="4.2" />
+      <ellipse rx="11" ry="4.2" transform="rotate(60)" />
+      <ellipse rx="11" ry="4.2" transform="rotate(120)" />
+    </g>
+  </svg>
+);
 
-const getFrameSrc = (index: number) =>
-  `/output_frames_webp/frame_${String(index).padStart(3, "0")}.webp`;
+const NextjsLogo = () => (
+  <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.666 17.382l-6.953-8.868v8.868H9.25V6.618h1.833l7.083 9.043V6.618h1.5v10.764h-2z" />
+  </svg>
+);
 
-const getFallbackFrameSrc = (index: number) =>
-  `/output_frames/frame_${String(index).padStart(3, "0")}.png`;
+const FlutterLogo = () => (
+  <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M14.314 0L2.3 12 6 15.7 21.684.013h-7.37zm.014 11.072L7.857 17.53l3.7 3.702 3.7-3.702 6.443-6.458h-7.372zM15.243 24l-3.686-3.686 3.686-3.686h7.372L18.93 20.314 22.615 24h-7.372z" />
+  </svg>
+);
 
-export default function HomePage() {
+const NodeLogo = () => (
+  <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M12 2a1.5 1.5 0 0 0-.75.2l-8 4.62A1.5 1.5 0 0 0 2.5 8.12v9.24a1.5 1.5 0 0 0 .75 1.3l8 4.62a1.5 1.5 0 0 0 1.5 0l8-4.62a1.5 1.5 0 0 0 .75-1.3V8.12a1.5 1.5 0 0 0-.75-1.3l-8-4.62A1.5 1.5 0 0 0 12 2zm0 2.3 6.5 3.75v7.5L12 19.3 5.5 15.55v-7.5L12 4.3z" />
+    <path d="M10 8h2v8h-2z" />
+  </svg>
+);
+
+const ExpressLogo = () => (
+  <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M1.5 16.5l4.5-8h2l-3.3 5.7L8 16.5H6.2l-2.4-4.3-2.3 4.3H0l4.5-8zm11.5 0V8.5h4.8c1.5 0 2.7.9 2.7 2.3 0 .9-.5 1.7-1.3 2 1 .3 1.7 1.2 1.7 2.2 0 1.5-1.2 2.5-2.8 2.5H13zm2-5h2.6c.5 0 .9-.3.9-.8s-.4-.8-.9-.8H15v1.6zm0 3.4h2.8c.5 0 .9-.4.9-.9s-.4-.9-.9-.9H15v1.8z" />
+  </svg>
+);
+
+const SupabaseLogo = () => (
+  <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M21.362 9.354H12V.396a.396.396 0 0 0-.716-.233L.103 13.916a.396.396 0 0 0 .307.638H9.6v8.958a.396.396 0 0 0 .716.233l11.181-13.753a.396.396 0 0 0-.307-.638z" />
+  </svg>
+);
+
+const GoLogo = () => (
+  <svg className="w-6 h-5 shrink-0" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M1.5 10.5c.8-2.6 3.1-4.5 5.9-4.5 3.3 0 6 2.7 6 6s-2.7 6-6 6c-3.1 0-5.6-2.3-5.9-5.3H6c.4 1.8 2 3.1 3.9 3.1 2.2 0 4-1.8 4-4s-1.8-4-4-4c-1.8 0-3.3 1.2-3.8 2.8H8v2H1.5v-2.1zm12.5 1.5c0-3.3 2.7-6 6-6s6 2.7 6 6-2.7 6-6 6-6-2.7-6-6zm10 0c0-2.2-1.8-4-4-4s-4 1.8-4 4 1.8 4 4 4 4-1.8 4-4z" />
+  </svg>
+);
+
+const DockerLogo = () => (
+  <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M13.983 11.078h2.119a.186.186 0 0 0 .186-.185V9.006a.186.186 0 0 0-.186-.186h-2.119a.185.185 0 0 0-.185.185v1.888c0 .102.083.185.185.185m-2.954-5.43h2.118a.186.186 0 0 0 .186-.186V3.574a.186.186 0 0 0-.186-.185h-2.118a.185.185 0 0 0-.185.185v1.888c0 .102.082.185.185.185m0 2.716h2.118a.187.187 0 0 0 .186-.186V6.29a.186.186 0 0 0-.186-.185h-2.118a.185.185 0 0 0-.185.185v1.887c0 .102.082.186.185.186m-2.93 0h2.12a.186.186 0 0 0 .184-.186V6.29a.185.185 0 0 0-.185-.185H8.1a.185.185 0 0 0-.185.185v1.887c0 .102.083.186.185.186m-2.964 0h2.119a.186.186 0 0 0 .185-.186V6.29a.185.185 0 0 0-.185-.185H5.136a.186.186 0 0 0-.186.185v1.887c0 .102.084.186.186.186m5.893 2.715h2.119a.186.186 0 0 0 .186-.185V9.006a.186.186 0 0 0-.186-.186h-2.119a.185.185 0 0 0-.185.185v1.888c0 .102.082.185.185.185m-2.93 0h2.12a.185.185 0 0 0 .184-.185V9.006a.185.185 0 0 0-.184-.186h-2.12a.185.185 0 0 0-.184.185v1.888c0 .102.083.185.185.185m-2.964 0h2.119a.185.185 0 0 0 .185-.185V9.006a.185.185 0 0 0-.185-.186H5.136a.186.186 0 0 0-.186.185v1.888c0 .102.084.185.186.185m-2.928 0h2.119a.185.185 0 0 0 .185-.185V9.006a.185.185 0 0 0-.185-.186H2.208a.185.185 0 0 0-.185.185v1.888c0 .102.082.185.185.185M23.79 9.89a4.94 4.94 0 0 0-3.27-2.457.48.48 0 0 0-.52.285 4.35 4.35 0 0 1-2.27 2.178.25.25 0 0 1-.295-.084 7.28 7.28 0 0 0-4.04-2.528.32.32 0 0 0-.34.195l-.12.288a.24.24 0 0 1-.22.146H.24a.24.24 0 0 0-.24.24v.24c0 3.29 1.48 6.27 4.13 8.16 2.06 1.47 4.6 2.27 7.23 2.27 7.05 0 12.35-4.49 12.63-10.74a.45.45 0 0 0-.2-.39" />
+  </svg>
+);
+
+const NginxLogo = () => (
+  <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M12 0L1.6 6v12L12 24l10.4-6V6L12 0zm-1.8 17.5l-4-5.2v5.2H4.6V6.5h1.6l4 5.2V6.5h1.6v11h-1.6zm8.8 0h-4.2V6.5h1.6v9.4h2.6v1.6z" />
+  </svg>
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Scroll Reveal Hook — Intersection Observer for storytelling sections
+// ─────────────────────────────────────────────────────────────────────────────
+function useScrollReveal(threshold = 0.15) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [revealed, setRevealed] = useState(false);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setRevealed(true);
+          observer.unobserve(el);
+        }
+      },
+      { threshold }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [threshold]);
+
+  return { ref, revealed };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MAIN PAGE COMPONENT
+// ─────────────────────────────────────────────────────────────────────────────
+export default function DreamFrameHero() {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [scrollProgress, setScrollProgress] = useState(0);
-  const [activeChapterIndex, setActiveChapterIndex] = useState(0);
-  const [isReady, setIsReady] = useState(false);
 
-  const imagesRef = useRef<Array<HTMLImageElement | null>>(
-    Array(TOTAL_FRAMES + 1).fill(null),
-  );
+  // References for animation state & loaded images
+  const imagesRef = useRef<Array<HTMLImageElement | null>>(new Array(TOTAL_FRAMES + 1).fill(null));
   const loadedFramesRef = useRef<Set<number>>(new Set());
-  const targetFrameRef = useRef(1);
-  const currentFrameRef = useRef(1);
-  const lastDrawnFrameRef = useRef(-1);
-  const mountedRef = useRef(false);
+  const targetFrameRef = useRef<number>(1);
+  const currentFrameRef = useRef<number>(1);
+  const lastDrawnFrameRef = useRef<number>(-1);
+  const isLoadedRef = useRef<boolean>(false);
 
-  const activeChapter =
-    STORY_CHAPTERS[activeChapterIndex] ?? STORY_CHAPTERS[0];
+  // Scroll reveal hooks for each content section
+  const marqueeReveal = useScrollReveal(0.1);
+  const bentoReveal = useScrollReveal(0.08);
+  const creatorReveal = useScrollReveal(0.08);
+  const finaleReveal = useScrollReveal(0.08);
+
+  const getWebpFrameSrc = (index: number) => {
+    const pad = String(index).padStart(3, "0");
+    return `/output_frames_webp/frame_${pad}.webp`;
+  };
+
+  const getPngFallbackSrc = (index: number) => {
+    const pad = String(index).padStart(3, "0");
+    return `/output_frames/frame_${pad}.png`;
+  };
+
+  const getAltPngFallbackSrc = (index: number) => {
+    const pad = String(index).padStart(3, "0");
+    return `/output_frames/frame-${pad}.png`;
+  };
+
+  // Continuous, silky smooth chapter opacity and transform calculation
+  const getChapterStyle = useCallback((chapter: StoryChapter, progress: number): React.CSSProperties => {
+    const percent = progress * 100;
+    if (percent < chapter.startPercent || percent > chapter.endPercent) {
+      return {
+        opacity: 0,
+        transform: "translateY(28px) scale(0.97)",
+        pointerEvents: "none",
+        visibility: "hidden" as const,
+      };
+    }
+
+    const fadeInWindow = 4;
+    const fadeOutWindow = 4;
+    let opacity = 1;
+    let translateY = 0;
+
+    if (chapter.startPercent > 0 && percent < chapter.startPercent + fadeInWindow) {
+      const ratio = (percent - chapter.startPercent) / fadeInWindow;
+      opacity = Math.max(0, Math.min(1, ratio));
+      translateY = (1 - ratio) * 24;
+    } else if (chapter.endPercent < 100 && percent > chapter.endPercent - fadeOutWindow) {
+      const ratio = (percent - (chapter.endPercent - fadeOutWindow)) / fadeOutWindow;
+      opacity = Math.max(0, Math.min(1, 1 - ratio));
+      translateY = -ratio * 28;
+    }
+
+    return {
+      opacity,
+      transform: `translateY(${translateY}px) scale(${0.98 + opacity * 0.02})`,
+      pointerEvents: opacity > 0.4 ? ("auto" as const) : ("none" as const),
+      visibility: "visible" as const,
+      transition: "opacity 0.15s ease-out, transform 0.15s ease-out",
+    };
+  }, []);
 
   useEffect(() => {
-    mountedRef.current = true;
+    let animationFrameId: number;
+    let isComponentMounted = true;
     const canvas = canvasRef.current;
     if (!canvas) return;
 
     const reducedMotionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
     let prefersReducedMotion = reducedMotionQuery.matches;
-
-    const handleMotionChange = (event: MediaQueryListEvent) => {
-      prefersReducedMotion = event.matches;
+    const handleMotionChange = (e: MediaQueryListEvent) => {
+      prefersReducedMotion = e.matches;
     };
-
     reducedMotionQuery.addEventListener("change", handleMotionChange);
 
-    const drawImageCover = (img: HTMLImageElement) => {
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return;
-
+    const updateCanvasDimensions = () => {
+      if (!canvas) return;
+      const dpr = window.devicePixelRatio || 1;
       const width = window.innerWidth;
       const height = window.innerHeight;
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const targetPixelWidth = Math.round(width * dpr);
+      const targetPixelHeight = Math.round(height * dpr);
 
+      if (canvas.width !== targetPixelWidth || canvas.height !== targetPixelHeight) {
+        canvas.width = targetPixelWidth;
+        canvas.height = targetPixelHeight;
+        lastDrawnFrameRef.current = -1;
+      }
+      canvas.style.width = `${width}px`;
+      canvas.style.height = `${height}px`;
+      renderFrame(Math.round(currentFrameRef.current), true);
+    };
+
+    const drawImageCover = (img: HTMLImageElement) => {
+      if (!canvas) return;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      const dpr = window.devicePixelRatio || 1;
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+
+      ctx.save();
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.clearRect(0, 0, width, height);
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = "high";
+      ctx.clearRect(0, 0, w, h);
 
-      const imgWidth = img.naturalWidth || 1280;
-      const imgHeight = img.naturalHeight || 720;
-      const imgRatio = imgWidth / imgHeight;
-      const screenRatio = width / height;
+      const imgW = img.naturalWidth || 1280;
+      const imgH = img.naturalHeight || 720;
+      const imgRatio = imgW / imgH;
+      const screenRatio = w / h;
 
-      let drawWidth = width;
-      let drawHeight = height;
-      let drawX = 0;
-      let drawY = 0;
-
+      let drawW: number, drawH: number, drawX: number, drawY: number;
       if (screenRatio > imgRatio) {
-        drawHeight = height;
-        drawWidth = height * imgRatio;
-        drawX = (width - drawWidth) / 2;
+        drawW = w; drawH = w / imgRatio; drawX = 0; drawY = (h - drawH) / 2;
       } else {
-        drawWidth = width;
-        drawHeight = width / imgRatio;
-        drawY = (height - drawHeight) / 2;
+        drawW = h * imgRatio; drawH = h; drawX = (w - drawW) / 2; drawY = 0;
       }
-
-      ctx.drawImage(img, drawX, drawY, drawWidth, drawHeight);
+      ctx.drawImage(img, drawX, drawY, drawW, drawH);
+      ctx.restore();
     };
 
     const renderFrame = (frameIndex: number, force = false) => {
-      const safeIndex = clamp(frameIndex, 1, TOTAL_FRAMES);
+      const clamped = Math.max(1, Math.min(TOTAL_FRAMES, frameIndex));
       const loadedFrames = loadedFramesRef.current;
-      let chosenFrame = safeIndex;
+      let chosenFrame = clamped;
 
       if (!loadedFrames.has(chosenFrame)) {
-        let nearestDistance = Number.POSITIVE_INFINITY;
-        for (const loadedIndex of loadedFrames) {
-          const distance = Math.abs(loadedIndex - chosenFrame);
-          if (distance < nearestDistance) {
-            nearestDistance = distance;
-            chosenFrame = loadedIndex;
-          }
+        let bestDistance = Infinity;
+        for (const loadedIdx of loadedFrames) {
+          const dist = Math.abs(loadedIdx - chosenFrame);
+          if (dist < bestDistance) { bestDistance = dist; chosenFrame = loadedIdx; }
         }
       }
 
       if (!force && chosenFrame === lastDrawnFrameRef.current) return;
-
       const img = imagesRef.current[chosenFrame];
       if (img && img.complete && img.naturalWidth > 0) {
         drawImageCover(img);
@@ -156,261 +349,1081 @@ export default function HomePage() {
 
     const updateScrollProgress = () => {
       if (!containerRef.current) return;
-
       const rect = containerRef.current.getBoundingClientRect();
       const containerHeight = containerRef.current.offsetHeight;
       const viewportHeight = window.innerHeight;
-      const maxScroll = Math.max(containerHeight - viewportHeight, 1);
-      const scrolled = -rect.top;
-      const progress = clamp(scrolled / maxScroll, 0, 1);
+      const maxScroll = containerHeight - viewportHeight;
+      if (maxScroll <= 0) { targetFrameRef.current = 1; setScrollProgress(0); return; }
 
+      const scrolled = -rect.top;
+      const progress = Math.min(Math.max(scrolled / maxScroll, 0), 1);
       targetFrameRef.current = 1 + progress * (TOTAL_FRAMES - 1);
       setScrollProgress(progress);
-
-      let nextIndex = 0;
-      for (let index = 0; index < STORY_CHAPTERS.length; index += 1) {
-        const chapter = STORY_CHAPTERS[index];
-        if (progress >= chapter.start && progress <= chapter.end) {
-          nextIndex = index;
-          break;
-        }
-      }
-
-      setActiveChapterIndex(nextIndex);
     };
 
-    const preloadFrame = (index: number): Promise<void> =>
-      new Promise((resolve) => {
-        const existing = imagesRef.current[index];
-        if (existing) {
+    const preloadImage = (index: number): Promise<void> => {
+      return new Promise((resolve) => {
+        if (imagesRef.current[index]) {
           resolve();
           return;
         }
 
-        const img = new Image();
-        img.decoding = "async";
-        img.src = getFrameSrc(index);
-
-        img.onload = () => {
-          if (!mountedRef.current) return;
-          imagesRef.current[index] = img;
+        const handleSuccess = (imageEl: HTMLImageElement) => {
+          if (!isComponentMounted) return;
+          imagesRef.current[index] = imageEl;
           loadedFramesRef.current.add(index);
+          if (index === 1 && !isLoadedRef.current) {
+            isLoadedRef.current = true;
+            renderFrame(1, true);
+          } else {
+            const currentTarget = Math.round(currentFrameRef.current);
+            if (
+              lastDrawnFrameRef.current === -1 ||
+              Math.abs(index - currentTarget) < Math.abs(lastDrawnFrameRef.current - currentTarget)
+            ) {
+              renderFrame(currentTarget, true);
+            }
+          }
           resolve();
         };
 
+        const img = new Image();
+        img.decoding = "async";
+        img.src = getWebpFrameSrc(index);
+
+        img.onload = () => handleSuccess(img);
+
         img.onerror = () => {
-          const fallback = new Image();
-          fallback.decoding = "async";
-          fallback.src = getFallbackFrameSrc(index);
+          // Fallback 1: PNG standard naming
+          const fallbackPng = new Image();
+          fallbackPng.decoding = "async";
+          fallbackPng.src = getPngFallbackSrc(index);
 
-          fallback.onload = () => {
-            if (!mountedRef.current) return;
-            imagesRef.current[index] = fallback;
-            loadedFramesRef.current.add(index);
-            resolve();
+          fallbackPng.onload = () => handleSuccess(fallbackPng);
+
+          fallbackPng.onerror = () => {
+            // Fallback 2: Alternate PNG naming (frame-001.png)
+            const fallbackAlt = new Image();
+            fallbackAlt.decoding = "async";
+            fallbackAlt.src = getAltPngFallbackSrc(index);
+
+            fallbackAlt.onload = () => handleSuccess(fallbackAlt);
+            fallbackAlt.onerror = () => resolve();
           };
-
-          fallback.onerror = () => resolve();
         };
       });
-
-    const preloadFrames = async () => {
-      const initialFrames = Array.from({ length: FIRST_PRELOAD_COUNT }, (_, index) => index + 1);
-      await Promise.all(initialFrames.map((frame) => preloadFrame(frame)));
-      setIsReady(true);
-
-      const remainingFrames = Array.from(
-        { length: TOTAL_FRAMES - FIRST_PRELOAD_COUNT },
-        (_, index) => index + FIRST_PRELOAD_COUNT + 1,
-      );
-
-      let workerIndex = 0;
-      const workers = Array.from({ length: Math.min(MAX_PRELOAD_WORKERS, remainingFrames.length) }, async () => {
-        while (workerIndex < remainingFrames.length) {
-          const currentIndex = remainingFrames[workerIndex++];
-          await preloadFrame(currentIndex);
-        }
-      });
-
-      await Promise.all(workers);
     };
 
-    const lerp = (start: number, end: number, amount: number) =>
-      start + (end - start) * amount;
+    const preloadAllFrames = async () => {
+      // 1. Preload frame 1 immediately and draw it
+      await preloadImage(1);
+
+      // 2. Preload first 20 WebP frames in parallel for instant responsiveness
+      const firstBurst = Array.from({ length: Math.min(20, TOTAL_FRAMES - 1) }, (_, i) => i + 2);
+      await Promise.all(firstBurst.map((idx) => preloadImage(idx)));
+
+      // 3. Concurrently load all remaining frames
+      const remainingFrames = Array.from(
+        { length: Math.max(0, TOTAL_FRAMES - 21) },
+        (_, i) => i + 22
+      );
+      const concurrency = 6;
+      const worker = async () => {
+        while (remainingFrames.length > 0 && isComponentMounted) {
+          const frameIdx = remainingFrames.shift();
+          if (frameIdx) await preloadImage(frameIdx);
+        }
+      };
+      await Promise.all(Array.from({ length: concurrency }, () => worker()));
+    };
+
+    const lerp = (start: number, end: number, factor: number) => start + (end - start) * factor;
 
     const animationLoop = () => {
-      if (!mountedRef.current) return;
-      if (document.hidden) {
-        window.requestAnimationFrame(animationLoop);
-        return;
-      }
-
+      if (!isComponentMounted) return;
       const target = targetFrameRef.current;
       const current = currentFrameRef.current;
-      const difference = target - current;
+      const diff = target - current;
 
       if (prefersReducedMotion) {
         currentFrameRef.current = target;
         renderFrame(Math.round(target));
       } else {
-        if (Math.abs(difference) > 0.001) {
+        if (Math.abs(diff) > 0.001) {
           currentFrameRef.current = lerp(current, target, 0.12);
           renderFrame(Math.round(currentFrameRef.current));
         } else if (current !== target) {
           currentFrameRef.current = target;
           renderFrame(Math.round(target));
+        } else if (lastDrawnFrameRef.current === -1) {
+          renderFrame(Math.round(target), true);
         }
       }
-
-      window.requestAnimationFrame(animationLoop);
+      animationFrameId = requestAnimationFrame(animationLoop);
     };
 
-    const handleResize = () => {
-      const width = window.innerWidth;
-      const height = window.innerHeight;
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
-
-      canvas.width = Math.round(width * dpr);
-      canvas.height = Math.round(height * dpr);
-      canvas.style.width = `${width}px`;
-      canvas.style.height = `${height}px`;
-      renderFrame(Math.round(currentFrameRef.current), true);
-      updateScrollProgress();
-    };
-
-    handleResize();
+    updateCanvasDimensions();
     updateScrollProgress();
-    void preloadFrames();
-    window.requestAnimationFrame(animationLoop);
+    preloadAllFrames();
+    animationLoop();
 
     const handleScroll = () => updateScrollProgress();
+    const handleResize = () => { updateCanvasDimensions(); updateScrollProgress(); };
 
     window.addEventListener("scroll", handleScroll, { passive: true });
     window.addEventListener("resize", handleResize, { passive: true });
-    document.addEventListener("visibilitychange", updateScrollProgress);
 
     return () => {
-      mountedRef.current = false;
+      isComponentMounted = false;
+      cancelAnimationFrame(animationFrameId);
       window.removeEventListener("scroll", handleScroll);
       window.removeEventListener("resize", handleResize);
-      document.removeEventListener("visibilitychange", updateScrollProgress);
       reducedMotionQuery.removeEventListener("change", handleMotionChange);
     };
   }, []);
 
-  const chapterProgress =
-    (scrollProgress - activeChapter.start) /
-    Math.max(activeChapter.end - activeChapter.start, 0.0001);
+  // Marquee data
+  const row1Logos = [
+    { name: "React", svg: <ReactLogo />, paddingClass: "px-9" },
+    { name: "Next.js", svg: <NextjsLogo />, paddingClass: "px-12" },
+    { name: "Flutter", svg: <FlutterLogo />, paddingClass: "px-8" },
+    { name: "Node.js", svg: <NodeLogo />, paddingClass: "px-11" },
+    { name: "Express", svg: <ExpressLogo />, paddingClass: "px-10" },
+    { name: "Supabase", svg: <SupabaseLogo />, paddingClass: "px-12" },
+    { name: "Go", svg: <GoLogo />, paddingClass: "px-8" },
+    { name: "Docker", svg: <DockerLogo />, paddingClass: "px-10" },
+    { name: "NGINX", svg: <NginxLogo />, paddingClass: "px-11" },
+  ];
+
+  const row2Logos = [
+    { name: "Docker", svg: <DockerLogo />, paddingClass: "px-11" },
+    { name: "Supabase", svg: <SupabaseLogo />, paddingClass: "px-8" },
+    { name: "Next.js", svg: <NextjsLogo />, paddingClass: "px-12" },
+    { name: "Go", svg: <GoLogo />, paddingClass: "px-9" },
+    { name: "Flutter", svg: <FlutterLogo />, paddingClass: "px-11" },
+    { name: "NGINX", svg: <NginxLogo />, paddingClass: "px-8" },
+    { name: "React", svg: <ReactLogo />, paddingClass: "px-10" },
+    { name: "Node.js", svg: <NodeLogo />, paddingClass: "px-12" },
+    { name: "Express", svg: <ExpressLogo />, paddingClass: "px-9" },
+  ];
+
+  // Is hero section in view?
+  const heroInView = scrollProgress < 1;
 
   return (
-    <main className="story-app" data-theme={activeChapter.theme}>
-      <div className="top-progress" aria-live="polite">
-        <div className="progress-track">
-          <span style={{ transform: `scaleX(${scrollProgress})` }} />
-        </div>
-        <div className="chapter-pill">
-          <span className="pillar-dot" />
-          {activeChapter.label}
-        </div>
-      </div>
+    <div className="relative w-full bg-black text-white selection:bg-amber-500/30 selection:text-white">
 
-      <section ref={containerRef} className="hero-shell">
-        <div className="hero-stage">
-          <canvas ref={canvasRef} className="story-canvas" aria-hidden="true" />
-          <div className="story-vignette" />
-          <div className="story-noise" />
-          <div className="story-grid" />
-
-          <div
-            className="hero-copy"
-            style={{ opacity: isReady ? 1 : 0.8 }}
-            key={activeChapter.id}
-          >
-            <span className="eyebrow">{activeChapter.label}</span>
-            <h1>{activeChapter.title}</h1>
-            <div className="divider" />
-            <p className="lede">{activeChapter.summary}</p>
+      {/* Floating Header Navigation */}
+      <header className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-4 sm:px-8 py-3.5 backdrop-blur-xl bg-black/60 border-b border-white/[0.08] transition-all duration-300">
+        <div
+          className="flex items-center gap-3 cursor-pointer select-none"
+          onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+        >
+          <div className="relative flex items-center justify-center w-8 h-8 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 shadow-[0_0_15px_rgba(255,85,0,0.4)]">
+            <span className="w-2.5 h-2.5 rounded-sm bg-white rotate-45" />
           </div>
+          <div className="flex flex-col">
+            <span className="text-sm font-semibold tracking-wide text-white">دريم فريم AI</span>
+            <span className="text-[10px] text-zinc-400 font-mono -mt-0.5">DREAMFRAME</span>
+          </div>
+        </div>
 
-          <div className="chapter-list" aria-label="Story chapters">
-            {STORY_CHAPTERS.map((chapter, chapterIndex) => (
+        <nav className="hidden md:flex items-center gap-8 text-xs font-medium text-zinc-400">
+          <button
+            onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+            className="hover:text-amber-400 transition-colors cursor-pointer"
+          >
+            القصة
+          </button>
+          <button
+            onClick={() => {
+              const el = document.getElementById("chapter-tech");
+              el?.scrollIntoView({ behavior: "smooth" });
+            }}
+            className="hover:text-amber-400 transition-colors cursor-pointer"
+          >
+            الأدوات والتقنية
+          </button>
+          <button
+            onClick={() => {
+              const el = document.getElementById("model-creator");
+              el?.scrollIntoView({ behavior: "smooth" });
+            }}
+            className="hover:text-amber-400 transition-colors cursor-pointer"
+          >
+            استوديو 3D
+          </button>
+        </nav>
+
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => {
+              const el = document.getElementById("model-creator");
+              el?.scrollIntoView({ behavior: "smooth" });
+            }}
+            className="px-4 py-2 rounded-full text-xs font-medium text-white bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 shadow-[0_0_20px_rgba(255,85,0,0.3)] transition-all cursor-pointer"
+          >
+            ابدأ التجربة
+          </button>
+        </div>
+      </header>
+
+      {/* ═══════════════════════════════════════════════════════════════════════
+          SCROLL PROGRESS BAR — Thin amber line at top
+          ═══════════════════════════════════════════════════════════════════════ */}
+      <div
+        className={`scroll-progress-bar ${heroInView ? 'visible' : ''}`}
+        style={{ transform: `scaleX(${scrollProgress})` }}
+      />
+
+      {/* ═══════════════════════════════════════════════════════════════════════
+          HERO SECTION — 150-frame scroll sequence with cinematic text reveals
+          ═══════════════════════════════════════════════════════════════════════ */}
+      <section
+        ref={containerRef}
+        className="relative w-full h-[450vh] bg-black select-none"
+      >
+        {/* Sticky full-screen viewport */}
+        <div className="sticky top-0 left-0 w-full h-screen h-dvh overflow-hidden">
+
+          {/* Canvas */}
+          <canvas
+            ref={canvasRef}
+            className="absolute inset-0 w-full h-full pointer-events-none z-0"
+          />
+
+          {/* Cinematic Vignette */}
+          <div
+            className="pointer-events-none absolute inset-0 z-[1]"
+            style={{
+              background:
+                "radial-gradient(ellipse at center, rgba(0,0,0,0) 40%, rgba(0,0,0,0.3) 70%, rgba(0,0,0,0.85) 100%)",
+            }}
+          />
+
+          {/* Noise grain */}
+          <div
+            className="pointer-events-none absolute inset-0 z-[2] opacity-[0.03]"
+            style={{
+              backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E")`,
+              backgroundRepeat: "repeat",
+            }}
+          />
+
+          {/* ─── STORYTELLING CHAPTERS ─── */}
+          {STORY_CHAPTERS.map((chapter) => {
+            const style = getChapterStyle(chapter, scrollProgress);
+            return (
               <div
                 key={chapter.id}
-                className={
-                  chapterIndex === activeChapterIndex ? "chapter-chip active" : "chapter-chip"
-                }
+                className="story-chapter"
+                style={style}
               >
-                {chapter.label}
+                {chapter.badge && (
+                  <div className="story-badge">
+                    <span className="dot" />
+                    <span>{chapter.badge}</span>
+                  </div>
+                )}
+                <h1 className="story-headline">{chapter.headline}</h1>
+                <div className="story-divider" />
+                <p className="story-subline">{chapter.subline}</p>
+                {chapter.showCTA && (
+                  <button
+                    className="hero-cta mt-8 cursor-pointer"
+                    onClick={() => {
+                      document.getElementById('chapter-tech')?.scrollIntoView({ behavior: 'smooth' });
+                    }}
+                  >
+                    <span>اكتشف المزيد</span>
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M7 17l9.2-9.2M17 17V7H7" />
+                    </svg>
+                  </button>
+                )}
               </div>
-            ))}
-          </div>
+            );
+          })}
 
+          {/* Scroll hint at bottom of first chapter */}
           <div
-            className="scroll-cue"
-            aria-hidden="true"
+            className="absolute bottom-8 left-1/2 -translate-x-1/2 z-10 flex flex-col items-center gap-2 transition-opacity duration-500"
             style={{ opacity: scrollProgress < 0.05 ? 1 : 0 }}
           >
-            <span>Scroll</span>
-            <div className="scroll-cue-line">
-              <i />
+            <span className="text-[10px] font-mono text-zinc-500 tracking-widest uppercase">مرر للأسفل</span>
+            <div className="w-5 h-8 rounded-full border border-zinc-600 flex items-start justify-center p-1.5">
+              <div className="w-1 h-2 rounded-full bg-amber-500 animate-bounce" />
             </div>
           </div>
         </div>
       </section>
 
-      <section className="story-meta">
-        <div className="story-meta-card">
-          <p className="section-kicker">Narrative</p>
-          <h2>Immersion first, interface second.</h2>
-          <p>
-            The story begins in quiet monochrome, opens into warmth and motion,
-            and resolves into a premium, cinematic finish.
-          </p>
-        </div>
-      </section>
+      {/* ═══════════════════════════════════════════════════════════════════════
+          CONTENT SECTIONS — Narrative flow continues
+          ═══════════════════════════════════════════════════════════════════════ */}
+      <div className="relative z-10 w-full bg-[#000000] overflow-hidden">
 
-      <section className="story-panels">
-        {STORY_CHAPTERS.map((chapter, chapterIndex) => (
-          <article
-            key={chapter.id}
-            className={
-              chapterIndex === activeChapterIndex ? "story-panel active" : "story-panel"
-            }
-            data-theme={chapter.theme}
-          >
-            <span className="panel-index">{chapter.label}</span>
-            <h3>{chapter.title}</h3>
-            <p>{chapter.summary}</p>
-          </article>
-        ))}
-      </section>
-
-      <section className="story-cta-wrap">
-        <div className="story-cta-card">
-          <p className="section-kicker">Next</p>
-          <h2>Build a story people feel, not just read.</h2>
-          <p>
-            The frame sequence remains the main visual event. The interface is kept
-            restrained so the pacing, motion, and typography carry the narrative.
-          </p>
-          <div className="story-actions">
-            <a href="https://github.com/kararha" target="_blank" rel="noreferrer">
-              Portfolio
-            </a>
-            <a href="mailto:hello@kararha.dev">Contact</a>
-          </div>
-        </div>
-      </section>
-
-      <div className="chapter-progress" aria-hidden="true">
-        <span
-          className="chapter-progress-fill"
+        {/* Grain overlay */}
+        <div
+          className="pointer-events-none absolute inset-0 z-0 opacity-[0.025]"
           style={{
-            transform: `scaleX(${chapterProgress})`,
-            opacity: chapterProgress > 0 ? 1 : 0,
+            backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='grain'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23grain)'/%3E%3C/svg%3E")`,
+            backgroundRepeat: "repeat",
           }}
         />
+
+        {/* Atmospheric warm glows */}
+        <div className="pointer-events-none absolute top-24 left-1/2 -translate-x-1/2 w-[800px] h-[450px] bg-[radial-gradient(ellipse_at_center,rgba(255,85,0,0.06),transparent_70%)] blur-3xl" />
+        <div className="pointer-events-none absolute top-[750px] right-4 w-[650px] h-[500px] bg-[radial-gradient(ellipse_at_center,rgba(212,160,23,0.05),transparent_70%)] blur-3xl" />
+        <div className="pointer-events-none absolute bottom-40 left-10 w-[550px] h-[400px] bg-[radial-gradient(ellipse_at_center,rgba(255,85,0,0.04),transparent_70%)] blur-3xl" />
+
+        {/* ═══════════════════════════════════════════════════════════════════
+            CHAPTER 01 — TECH STACK MARQUEE
+            ═══════════════════════════════════════════════════════════════════ */}
+        <section
+          id="chapter-tech"
+          ref={marqueeReveal.ref}
+          className={`reveal-section ${marqueeReveal.revealed ? 'revealed' : ''} relative z-10 w-full pt-28 pb-28 overflow-hidden border-b border-white/[0.04]`}
+        >
+          {/* Narrative Section Header */}
+          <div className="flex flex-col items-center justify-center text-center mb-14 px-4">
+            <span className="section-chapter-number">الفصل الأول</span>
+            <h2 className="section-narrative">
+              أدوات <span className="accent">المحترفين</span>
+            </h2>
+            <p className="mt-3 text-zinc-400 font-light text-sm sm:text-base leading-relaxed max-w-lg">
+              نختار تقنياتنا بعناية فائقة — كل أداة تم اختبارها في بيئات إنتاج حقيقية بملايين المستخدمين
+            </p>
+          </div>
+
+          {/* Marquee with soft edge mask */}
+          <div
+            className="w-full flex flex-col gap-6"
+            style={{
+              maskImage: "linear-gradient(to right, transparent, black 12%, black 88%, transparent)",
+              WebkitMaskImage: "linear-gradient(to right, transparent, black 12%, black 88%, transparent)",
+            }}
+          >
+            {/* Row 1: Right to Left */}
+            <div className="flex w-max animate-marquee-left hover:[animation-play-state:paused] py-2">
+              {row1Logos.map((item, idx) => (
+                <div key={`r1-a-${idx}`} className={item.paddingClass}>
+                  <div className="flex items-center gap-3 text-white/50 hover:text-white transition-opacity duration-300 cursor-pointer select-none">
+                    {item.svg}
+                    <span className="text-xs sm:text-sm font-medium tracking-wide">{item.name}</span>
+                  </div>
+                </div>
+              ))}
+              {row1Logos.map((item, idx) => (
+                <div key={`r1-b-${idx}`} className={item.paddingClass}>
+                  <div className="flex items-center gap-3 text-white/50 hover:text-white transition-opacity duration-300 cursor-pointer select-none">
+                    {item.svg}
+                    <span className="text-xs sm:text-sm font-medium tracking-wide">{item.name}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Row 2: Left to Right */}
+            <div className="flex w-max animate-marquee-right hover:[animation-play-state:paused] py-2">
+              {row2Logos.map((item, idx) => (
+                <div key={`r2-a-${idx}`} className={item.paddingClass}>
+                  <div className="flex items-center gap-3 text-white/50 hover:text-white transition-opacity duration-300 cursor-pointer select-none">
+                    {item.svg}
+                    <span className="text-xs sm:text-sm font-medium tracking-wide">{item.name}</span>
+                  </div>
+                </div>
+              ))}
+              {row2Logos.map((item, idx) => (
+                <div key={`r2-b-${idx}`} className={item.paddingClass}>
+                  <div className="flex items-center gap-3 text-white/50 hover:text-white transition-opacity duration-300 cursor-pointer select-none">
+                    {item.svg}
+                    <span className="text-xs sm:text-sm font-medium tracking-wide">{item.name}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* ═══════════════════════════════════════════════════════════════════
+            CHAPTER 02 — CAPABILITIES BENTO GRID
+            ═══════════════════════════════════════════════════════════════════ */}
+        <section
+          ref={bentoReveal.ref}
+          className={`reveal-section ${bentoReveal.revealed ? 'revealed' : ''} relative z-10 w-full py-28 sm:py-36 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto`}
+        >
+          {/* Narrative Header */}
+          <div className="mb-16 sm:mb-20 max-w-2xl">
+            <span className="section-chapter-number">الفصل الثاني</span>
+            <h2 className="section-narrative">
+              ما نبنيه <span className="accent">يُغيّر</span> القواعد
+            </h2>
+            <p className="mt-4 text-zinc-400 font-light text-sm sm:text-base leading-relaxed">
+              هندسة أنظمة فائقة التزامن، وواجهات توليدية ذكية، وبنية تحتية رقمية موزعة ذات موثوقية عالية.
+            </p>
+          </div>
+
+          {/* Bento Grid */}
+          <div className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[1fr_1.35fr_1.45fr] gap-4 sm:gap-5 lg:gap-6 auto-rows-[minmax(240px,auto)] reveal-stagger ${bentoReveal.revealed ? 'revealed' : ''}`}>
+
+            {/* CARD 1: Automation */}
+            <div className="bento-card group relative rounded-3xl bg-zinc-950/60 border border-white/[0.08] hover:border-amber-500/35 p-6 sm:p-7 flex flex-col justify-between overflow-hidden backdrop-blur-xl shadow-[inset_0_1px_0_0_rgba(255,255,255,0.1)] col-span-1 lg:col-start-1 lg:row-start-1">
+              <div className="pointer-events-none absolute -bottom-10 -right-10 w-44 h-44 rounded-full bg-amber-500/[0.04] blur-2xl group-hover:bg-amber-500/[0.12] transition-colors duration-500" />
+
+              <div className="flex items-center justify-between z-10">
+                <span className="text-[11px] font-mono text-zinc-400 uppercase tracking-wider">أدوات الأتمتة</span>
+                <span className="inline-flex items-center gap-1.5 text-[10px] font-mono text-emerald-400 bg-emerald-950/40 border border-emerald-800/40 px-2.5 py-0.5 rounded-full">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  99.98% جاهزية
+                </span>
+              </div>
+
+              <div className="my-6 z-10">
+                <div className="rounded-2xl border border-white/[0.06] bg-black/40 p-4">
+                  <div className="flex items-center justify-between text-xs font-mono text-zinc-400 mb-3">
+                    <span>المحفز: webhook</span>
+                    <span className="text-amber-400">معالجة ذاتية</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-lg bg-zinc-900 border border-white/10 flex items-center justify-center text-[10px] text-amber-400 font-mono">01</div>
+                    <div className="h-0.5 flex-1 bg-gradient-to-r from-amber-500/60 to-zinc-700" />
+                    <div className="w-7 h-7 rounded-lg bg-zinc-900 border border-amber-500/40 flex items-center justify-center text-[10px] text-white font-mono shadow-[0_0_8px_rgba(255,85,0,0.3)]">02</div>
+                    <div className="h-0.5 flex-1 bg-zinc-800" />
+                    <div className="w-7 h-7 rounded-lg bg-zinc-900 border border-white/10 flex items-center justify-center text-[10px] text-zinc-400 font-mono">03</div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="z-10">
+                <h3 className="text-lg font-normal text-white tracking-tight group-hover:text-amber-400 transition-colors">
+                  سير عمل ذاتي ومستقل
+                </h3>
+                <p className="mt-1 text-xs sm:text-sm text-zinc-400 font-light leading-relaxed">
+                  طوابير أحداث مدفوعة بالبيانات، خطوط أنابيب مرنة، وتنسيق فوري لواجهات الويب هوك.
+                </p>
+              </div>
+            </div>
+
+            {/* CARD 2: Dashboards */}
+            <div className="bento-card group relative rounded-3xl bg-zinc-950/60 border border-white/[0.08] hover:border-amber-500/35 p-6 sm:p-7 flex flex-col justify-between overflow-hidden backdrop-blur-xl shadow-[inset_0_1px_0_0_rgba(255,255,255,0.1)] col-span-1 lg:col-start-2 lg:row-start-1">
+              <div className="pointer-events-none absolute -bottom-10 -right-10 w-44 h-44 rounded-full bg-amber-500/[0.04] blur-2xl group-hover:bg-amber-500/[0.12] transition-colors duration-500" />
+
+              <div className="flex items-center justify-between z-10">
+                <span className="text-[11px] font-mono text-zinc-400 uppercase tracking-wider">لوحات التحكم الإدارية</span>
+                <span className="text-[10px] font-mono text-amber-400 bg-amber-950/30 border border-amber-500/30 px-2.5 py-0.5 rounded-full">
+                  استجابة &lt; 14 ملّي ثانية
+                </span>
+              </div>
+
+              <div className="my-6 z-10">
+                <div className="flex items-baseline justify-between mb-2">
+                  <span className="text-2xl sm:text-3xl font-light text-white tracking-tight font-mono">1.28M</span>
+                  <span className="text-[11px] font-mono text-zinc-400">طلب / دقيقة</span>
+                </div>
+                <svg className="w-full h-16 overflow-visible" viewBox="0 0 300 70" fill="none">
+                  <defs>
+                    <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#ff5500" stopOpacity="0.25" />
+                      <stop offset="100%" stopColor="#ff5500" stopOpacity="0" />
+                    </linearGradient>
+                  </defs>
+                  <path d="M0 50 Q 50 40, 100 45 T 200 20 T 300 12 L 300 70 L 0 70 Z" fill="url(#chartGrad)" />
+                  <path d="M0 50 Q 50 40, 100 45 T 200 20 T 300 12" stroke="#ff5500" strokeWidth="2" strokeLinecap="round" />
+                  <circle cx="300" cy="12" r="3.5" fill="#ffffff" stroke="#ff5500" strokeWidth="2" />
+                </svg>
+              </div>
+
+              <div className="z-10">
+                <h3 className="text-lg font-normal text-white tracking-tight group-hover:text-amber-400 transition-colors">
+                  قياسات وتحليلات لحظية
+                </h3>
+                <p className="mt-1 text-xs sm:text-sm text-zinc-400 font-light leading-relaxed">
+                  تحليلات مجمعة فائقة السرعة مع تدفق للمقاييس وسجلات تدقيق تفصيلية في أجزاء من الثانية.
+                </p>
+              </div>
+            </div>
+
+            {/* CARD 3: AI — FEATURED TALL */}
+            <div className="bento-card group relative rounded-3xl bg-zinc-950/70 border border-white/[0.08] hover:border-amber-500/40 p-7 sm:p-8 flex flex-col justify-between overflow-hidden backdrop-blur-xl shadow-[inset_0_1px_0_0_rgba(255,255,255,0.12)] col-span-1 sm:col-span-2 lg:col-start-3 lg:row-start-1 lg:row-span-2">
+              <div className="pointer-events-none absolute -top-10 -right-10 w-72 h-72 rounded-full bg-amber-500/[0.08] blur-3xl group-hover:bg-amber-500/[0.16] transition-colors duration-700" />
+              <div className="pointer-events-none absolute bottom-0 left-0 w-60 h-60 rounded-full bg-orange-600/[0.05] blur-3xl" />
+
+              <div className="flex items-center justify-between z-10">
+                <span className="text-[11px] font-mono text-amber-400 tracking-widest uppercase">المنصة المميزة</span>
+                <span className="inline-flex items-center gap-1.5 text-[10px] font-mono text-zinc-300 bg-white/[0.05] border border-white/10 px-3 py-1 rounded-full">
+                  vLLM · 4.8k رمز/ث
+                </span>
+              </div>
+
+              <div className="my-8 z-10 flex flex-col gap-6">
+                <div className="relative w-full h-44 flex items-center justify-center">
+                  <div className="absolute w-40 h-40 rounded-full border border-amber-500/20 animate-[spin_24s_linear_infinite]" />
+                  <div className="absolute w-28 h-28 rounded-full border border-dashed border-white/20 animate-[spin_16s_linear_infinite_reverse]" />
+                  <div className="absolute w-16 h-16 rounded-full bg-amber-500/10 border border-amber-500/40 flex items-center justify-center shadow-[0_0_24px_rgba(255,85,0,0.3)]">
+                    <span className="w-3 h-3 rounded-full bg-[#ff5500] animate-pulse" />
+                  </div>
+                  <span className="absolute top-2 left-6 text-[10px] font-mono text-zinc-400 bg-black/60 border border-white/10 px-2 py-0.5 rounded-md">
+                    تضمين: 1536d
+                  </span>
+                  <span className="absolute bottom-3 right-6 text-[10px] font-mono text-amber-300 bg-black/60 border border-amber-500/30 px-2 py-0.5 rounded-md">
+                    فضاء كامن: 16-bit
+                  </span>
+                </div>
+
+                <div className="rounded-2xl border border-white/[0.08] bg-black/60 p-4 font-mono text-xs text-zinc-300 leading-relaxed shadow-inner" dir="rtl">
+                  <div className="flex items-center gap-1.5 pb-2 border-b border-white/[0.06] mb-2.5 text-[10px] text-zinc-500">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500/80" />
+                    <span>multi-modal-diffusion.engine</span>
+                  </div>
+                  <p className="text-zinc-400">
+                    <span className="text-amber-400">&gt;</span> الأمر: &quot;لوحة فنية سينمائية واقعية بدقة 8K...&quot;
+                  </p>
+                  <p className="text-emerald-400 mt-1">
+                    ✓ تم تجميع الأوزان (0.34ث) · الاستدلال نشط
+                  </p>
+                </div>
+              </div>
+
+              <div className="z-10">
+                <h3 className="text-xl sm:text-2xl font-light text-white tracking-tight group-hover:text-amber-400 transition-colors">
+                  تطبيقات مدمجة بالذكاء الاصطناعي
+                </h3>
+                <p className="mt-2 text-xs sm:text-sm text-zinc-400 font-light leading-relaxed">
+                  تنسيق نماذج متعددة الوسائط مخصصة بدقة فائقة، واستدلال فوري، وتنفيذ موثوق لوكلاء الذكاء الاصطناعي.
+                </p>
+              </div>
+            </div>
+
+            {/* CARD 4: Mobile — TALL */}
+            <div className="bento-card group relative rounded-3xl bg-zinc-950/60 border border-white/[0.08] hover:border-amber-500/35 p-6 sm:p-7 flex flex-col justify-between overflow-hidden backdrop-blur-xl shadow-[inset_0_1px_0_0_rgba(255,255,255,0.1)] col-span-1 lg:col-start-1 lg:row-start-2 lg:row-span-2">
+              <div className="pointer-events-none absolute -bottom-10 -left-10 w-44 h-44 rounded-full bg-amber-500/[0.04] blur-2xl group-hover:bg-amber-500/[0.12] transition-colors duration-500" />
+
+              <div className="flex items-center justify-between z-10">
+                <span className="text-[11px] font-mono text-zinc-400 uppercase tracking-wider">تطبيقات الجوال</span>
+                <span className="text-[10px] font-mono text-zinc-400 bg-white/[0.05] border border-white/10 px-2 py-0.5 rounded-full">
+                  شاشة 120 إطار/ث
+                </span>
+              </div>
+
+              <div className="my-8 z-10 flex justify-center">
+                <div className="w-48 rounded-[28px] border-2 border-white/15 bg-black/80 p-3 shadow-2xl relative overflow-hidden">
+                  <div className="w-16 h-3 rounded-full bg-zinc-900 mx-auto mb-4 border border-white/10" />
+                  <div className="rounded-xl bg-zinc-900/80 border border-white/10 p-3 mb-2.5">
+                    <div className="w-10 h-1.5 rounded-full bg-amber-500/60 mb-2" />
+                    <div className="flex items-center justify-between text-[11px] font-mono text-white">
+                      <span>حالة المزامنة</span>
+                      <span className="text-emerald-400">متصل الآن</span>
+                    </div>
+                  </div>
+                  <div className="flex items-end justify-between h-10 px-2 pb-1 gap-1">
+                    <span className="w-1.5 bg-zinc-700 h-4 rounded-full" />
+                    <span className="w-1.5 bg-zinc-600 h-7 rounded-full" />
+                    <span className="w-1.5 bg-amber-500 h-9 rounded-full" />
+                    <span className="w-1.5 bg-orange-400 h-6 rounded-full" />
+                    <span className="w-1.5 bg-zinc-700 h-3 rounded-full" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="z-10">
+                <h3 className="text-lg font-normal text-white tracking-tight group-hover:text-amber-400 transition-colors">
+                  تطبيقات جوال أصيلة وسلسة
+                </h3>
+                <p className="mt-1 text-xs sm:text-sm text-zinc-400 font-light leading-relaxed">
+                  واجهات إيماءات تفاعلية بسرعة 120 إطاراً في الثانية مصممة بأعلى معايير الأداء لمنصتي iOS و Android.
+                </p>
+              </div>
+            </div>
+
+            {/* CARD 5: Edge Architecture */}
+            <div className="bento-card group relative rounded-3xl bg-zinc-950/60 border border-white/[0.08] hover:border-amber-500/35 p-6 sm:p-7 flex flex-col justify-between items-center text-center overflow-hidden backdrop-blur-xl shadow-[inset_0_1px_0_0_rgba(255,255,255,0.1)] col-span-1 lg:col-start-2 lg:row-start-2">
+              <div className="pointer-events-none absolute inset-0 bg-radial from-amber-500/[0.05] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+
+              <div className="w-full flex justify-between z-10 text-[11px] font-mono text-zinc-500 uppercase">
+                <span>البنية التحتية</span>
+                <span className="text-amber-400">استجابة &lt; 8 ملّي ثانية</span>
+              </div>
+
+              <div className="my-6 z-10 flex flex-col items-center">
+                <div className="w-16 h-16 rounded-2xl bg-zinc-900 border border-white/10 flex items-center justify-center group-hover:border-amber-500/40 group-hover:scale-105 transition-all duration-500 shadow-[0_0_20px_rgba(255,85,0,0.15)]">
+                  <svg className="w-8 h-8 text-amber-400" viewBox="0 0 24 24" fill="currentColor">
+                    <circle cx="12" cy="5" r="3" />
+                    <circle cx="12" cy="19" r="3" />
+                    <circle cx="5" cy="12" r="3" />
+                    <circle cx="19" cy="12" r="3" />
+                    <circle cx="12" cy="12" r="1.5" />
+                  </svg>
+                </div>
+              </div>
+
+              <div className="z-10 w-full text-start">
+                <h3 className="text-base sm:text-lg font-normal text-white tracking-tight group-hover:text-amber-400 transition-colors">
+                  الأنظمة الموزعة والحوسبة الطرفية
+                </h3>
+                <p className="mt-1 text-xs text-zinc-400 font-light leading-relaxed">
+                  تشغيل لحظي فوري بدون تأخير مع تكرار جغرافي للبيانات وحوسبة سحابية موزعة على الحافة.
+                </p>
+              </div>
+            </div>
+
+            {/* CARD 6: E-Commerce */}
+            <div className="bento-card group relative rounded-3xl bg-zinc-950/60 border border-white/[0.08] hover:border-amber-500/35 p-6 sm:p-7 flex flex-col justify-between overflow-hidden backdrop-blur-xl shadow-[inset_0_1px_0_0_rgba(255,255,255,0.1)] col-span-1 lg:col-start-2 lg:row-start-3">
+              <div className="pointer-events-none absolute -bottom-10 -right-10 w-44 h-44 rounded-full bg-amber-500/[0.04] blur-2xl group-hover:bg-amber-500/[0.12] transition-colors duration-500" />
+
+              <div className="flex items-center justify-between z-10">
+                <span className="text-[11px] font-mono text-zinc-400 uppercase tracking-wider">منصات التجارة الرقمية</span>
+                <span className="text-[10px] font-mono text-emerald-400 bg-emerald-950/30 border border-emerald-800/40 px-2 py-0.5 rounded-full">
+                  متعدد العملات
+                </span>
+              </div>
+
+              <div className="my-5 z-10 flex flex-col items-start">
+                <div className="text-3xl sm:text-4xl font-light text-white tracking-tight font-mono">
+                  $48M<span className="text-amber-400">+</span>
+                </div>
+                <div className="flex items-center gap-2 mt-3">
+                  <span className="text-[10px] font-mono text-zinc-300 bg-white/5 border border-white/10 px-2.5 py-1 rounded-full">USD</span>
+                  <span className="text-[10px] font-mono text-zinc-300 bg-white/5 border border-white/10 px-2.5 py-1 rounded-full">EUR</span>
+                  <span className="text-[10px] font-mono text-zinc-300 bg-white/5 border border-white/10 px-2.5 py-1 rounded-full">SAR</span>
+                  <span className="text-[10px] font-mono text-amber-300 bg-amber-950/40 border border-amber-500/30 px-2.5 py-1 rounded-full">تسوية فورية</span>
+                </div>
+              </div>
+
+              <div className="z-10">
+                <h3 className="text-lg font-normal text-white tracking-tight group-hover:text-amber-400 transition-colors">
+                  محركات التجارة العالمية
+                </h3>
+                <p className="mt-1 text-xs sm:text-sm text-zinc-400 font-light leading-relaxed">
+                  إدارة متزامنة للمخزون، إتمام شراء متعدد العملات، ومعالجة مدفوعات مرنة بدون أي انقطاع.
+                </p>
+              </div>
+            </div>
+
+            {/* CARD 7: Creative Canvas */}
+            <div className="bento-card group relative rounded-3xl bg-gradient-to-br from-[#ff5500]/20 via-zinc-950/90 to-amber-950/30 border border-white/[0.08] hover:border-amber-500/40 p-6 sm:p-7 flex flex-col justify-between overflow-hidden backdrop-blur-xl shadow-[inset_0_1px_0_0_rgba(255,255,255,0.1)] col-span-1 lg:col-start-3 lg:row-start-3">
+              <div className="pointer-events-none absolute inset-0 bg-radial from-[#ff5500]/15 via-transparent to-transparent opacity-60 group-hover:opacity-100 transition-opacity duration-700" />
+
+              <div className="flex items-center justify-between z-10">
+                <span className="text-[11px] font-mono text-amber-300 uppercase tracking-wider">المساحة الإبداعية</span>
+                <span className="text-[10px] font-mono text-zinc-300 bg-black/40 border border-white/10 px-2.5 py-0.5 rounded-full">
+                  WebGL 2.0
+                </span>
+              </div>
+
+              <div className="my-6 z-10 flex items-center justify-center">
+                <svg className="w-full h-14 overflow-visible opacity-80 group-hover:opacity-100 transition-opacity" viewBox="0 0 200 50" fill="none">
+                  <path d="M0 25 C 40 5, 60 45, 100 25 C 140 5, 160 45, 200 25" stroke="#ff5500" strokeWidth="2.5" strokeLinecap="round" />
+                  <path d="M0 32 C 40 12, 60 52, 100 32 C 140 12, 160 52, 200 32" stroke="rgba(212, 160, 23, 0.4)" strokeWidth="1.5" strokeDasharray="4 4" />
+                </svg>
+              </div>
+
+              <div className="z-10">
+                <h3 className="text-lg font-normal text-white tracking-tight group-hover:text-amber-400 transition-colors">
+                  رسوميات وتسريع عتادي فائق
+                </h3>
+                <p className="mt-1 text-xs sm:text-sm text-zinc-400 font-light leading-relaxed">
+                  مظللات WebGL، معالجة فورية للصور، ووسائط تفاعلية غامرة مسرعة بالعتاد الرسومي.
+                </p>
+              </div>
+            </div>
+
+          </div>
+        </section>
+
+        {/* ═══════════════════════════════════════════════════════════════════
+            CHAPTER 03 — 3D MODEL CREATOR (الفصل الثالث: استوديو النماذج التوليدي)
+            ═══════════════════════════════════════════════════════════════════ */}
+        <section
+          id="model-creator"
+          ref={creatorReveal.ref}
+          aria-label="أداة تصميم النماذج ثلاثية الأبعاد"
+          className={`reveal-section ${creatorReveal.revealed ? 'revealed' : ''} relative z-10 w-full py-28 sm:py-36 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto border-t border-white/[0.04]`}
+        >
+          {/* Subtle ambient glow */}
+          <div className="pointer-events-none absolute top-1/3 right-10 w-[600px] h-[400px] bg-[radial-gradient(ellipse_at_center,rgba(255,85,0,0.06),transparent_70%)] blur-3xl" />
+
+          <div className="relative w-full max-w-7xl mx-auto">
+
+            {/* Narrative Header */}
+            <div className="mb-16 sm:mb-20 max-w-2xl">
+              <span className="section-chapter-number">الفصل الثالث</span>
+              <h2 className="section-narrative">
+                من <span className="accent">وصف نصي</span> إلى نموذج ثلاثي الأبعاد
+              </h2>
+              <p className="mt-4 text-zinc-400 font-light text-sm sm:text-base leading-relaxed">
+                صف ما تتخيله بدقة — يتولى المحرك بناء الهيكل الشبكي، وتوليد الخامات والتصدير في ثوانٍ معدودة.
+              </p>
+            </div>
+
+            {/* Bento Grid */}
+            <div className="model-creator-grid grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5 lg:gap-6 auto-rows-[minmax(220px,auto)]">
+
+              {/* 3D VIEWER */}
+              <div className="col-span-1 sm:col-span-2 lg:col-start-2 lg:col-span-2 lg:row-start-1 lg:row-span-2 order-first lg:order-none">
+                <ModelViewer />
+              </div>
+
+              {/* CARD 1: Prompt Input */}
+              <div className="bento-card group relative rounded-3xl bg-zinc-950/60 border border-white/[0.08] hover:border-amber-500/35 p-6 sm:p-7 flex flex-col justify-between overflow-hidden backdrop-blur-xl shadow-[inset_0_1px_0_0_rgba(255,255,255,0.1)] col-span-1 lg:col-start-1 lg:row-start-1 lg:row-span-2">
+                <div className="pointer-events-none absolute -bottom-10 -right-10 w-44 h-44 rounded-full bg-amber-500/[0.04] blur-2xl group-hover:bg-amber-500/[0.1] transition-colors duration-500" />
+
+                <div className="flex items-center justify-between z-10">
+                  <span className="text-[11px] font-mono text-zinc-400 uppercase tracking-wider">
+                    الوصف النصي (Prompt)
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 text-[10px] font-mono text-amber-400 bg-amber-950/40 border border-amber-800/40 px-2.5 py-0.5 rounded-full">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                    محرك AI الإصدار 3
+                  </span>
+                </div>
+
+                <div className="my-6 flex-1 flex flex-col z-10">
+                  <div className="flex-1 rounded-2xl p-4 font-mono text-xs sm:text-sm leading-relaxed bg-black/60 border border-white/[0.08] text-zinc-300">
+                    <span className="text-amber-500 font-bold">&gt;</span>{' '}
+                    بيت شجري أيزومتري مصغر بسقف مغطى بالطحالب، ونوافذ تشع بضوء دافئ، محاط بيرقات مضيئة — نموذج ثلاثي الأبعاد جاهز للألعاب…
+                    <span className="inline-block w-2 h-4 mr-1 align-middle bg-amber-500 animate-pulse rounded-sm" />
+                  </div>
+
+                  <div className="flex flex-wrap gap-2 mt-4">
+                    {['اقتراح عشوائي', 'تعزيز التفاصيل', 'تبسيط النموذج'].map((label) => (
+                      <button
+                        key={label}
+                        className="text-[11px] font-mono px-3 py-1 rounded-full text-zinc-400 bg-zinc-900/80 border border-white/[0.08] hover:text-white hover:border-amber-500/30 transition-colors"
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <button className="w-full py-3 rounded-xl text-sm font-medium tracking-wide bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white shadow-[0_0_25px_rgba(255,85,0,0.3)] hover:shadow-[0_0_35px_rgba(255,85,0,0.5)] transition-all z-10">
+                  توليد النموذج ثلاثي الأبعاد
+                </button>
+              </div>
+
+              {/* CARD 2: Style Presets */}
+              <div className="bento-card group relative rounded-3xl bg-zinc-950/60 border border-white/[0.08] hover:border-amber-500/35 p-6 sm:p-7 flex flex-col justify-between overflow-hidden backdrop-blur-xl shadow-[inset_0_1px_0_0_rgba(255,255,255,0.1)] col-span-1 lg:col-start-4 lg:row-start-1">
+                <div className="flex items-center justify-between z-10">
+                  <span className="text-[11px] font-mono text-zinc-400 uppercase tracking-wider">
+                    النمط الفني
+                  </span>
+                  <span className="text-[10px] font-mono text-zinc-500">اختر النمط</span>
+                </div>
+
+                <div className="my-5 grid grid-cols-3 gap-2 z-10">
+                  {[
+                    {
+                      name: 'واقعي', active: false, icon: (
+                        <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                          <circle cx="12" cy="12" r="10" />
+                          <path d="M12 2a14.5 14.5 0 0 0 0 20M12 2a14.5 14.5 0 0 1 0 20M2 12h20" />
+                        </svg>
+                      )
+                    },
+                    {
+                      name: 'فني مميز', active: true, icon: (
+                        <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                          <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                        </svg>
+                      )
+                    },
+                    {
+                      name: 'بولي منخفض', active: false, icon: (
+                        <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M12 2L2 19h20L12 2z" />
+                          <path d="M12 2l5 10H7l5-10z" />
+                        </svg>
+                      )
+                    },
+                  ].map((style) => (
+                    <div
+                      key={style.name}
+                      className={`flex flex-col items-center gap-2 p-3 rounded-2xl text-center transition-all duration-200 cursor-pointer ${
+                        style.active
+                          ? 'bg-amber-500/15 border border-amber-500/40 text-amber-400 shadow-[0_0_15px_rgba(255,85,0,0.15)]'
+                          : 'bg-zinc-900/60 border border-white/[0.06] text-zinc-400 hover:text-zinc-200 hover:border-white/15'
+                      }`}
+                    >
+                      {style.icon}
+                      <span className="text-[10px] font-mono">{style.name}</span>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="z-10">
+                  <h3 className="text-base font-normal tracking-tight text-white group-hover:text-amber-400 transition-colors">
+                    التوجيه الفني
+                  </h3>
+                  <p className="mt-1 text-xs font-light leading-relaxed text-zinc-400">
+                    حدد الطابع البصري لتوجيه كثافة الهيكل الشبكي وأسلوب التظليل.
+                  </p>
+                </div>
+              </div>
+
+              {/* CARD 3: Materials */}
+              <div className="bento-card group relative rounded-3xl bg-zinc-950/60 border border-white/[0.08] hover:border-amber-500/35 p-6 sm:p-7 flex flex-col justify-between overflow-hidden backdrop-blur-xl shadow-[inset_0_1px_0_0_rgba(255,255,255,0.1)] col-span-1 lg:col-start-4 lg:row-start-2">
+                <div className="flex items-center justify-between z-10">
+                  <span className="text-[11px] font-mono text-zinc-400 uppercase tracking-wider">
+                    الخامة السطحية
+                  </span>
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full text-zinc-400 bg-zinc-900 border border-white/10">
+                    خامات واقعية PBR
+                  </span>
+                </div>
+
+                <div className="my-5 flex flex-col gap-2 z-10">
+                  {[
+                    { name: 'طين مطفي (Matte Clay)', color: '#d4c8b8', active: false },
+                    { name: 'معدن مصقول (Brushed Metal)', color: '#9ca3af', active: true },
+                    { name: 'زجاج مثلج (Frosted Glass)', color: '#bae6fd', active: false },
+                    { name: 'حبيبات الخشب (Wood Grain)', color: '#a16207', active: false },
+                  ].map((mat) => (
+                    <div
+                      key={mat.name}
+                      className={`flex items-center gap-3 px-3 py-2 rounded-xl transition-all duration-200 cursor-pointer ${
+                        mat.active
+                          ? 'bg-amber-500/10 border border-amber-500/30'
+                          : 'bg-zinc-900/40 border border-white/[0.04] hover:border-white/10'
+                      }`}
+                    >
+                      <span
+                        className={`w-4 h-4 rounded-full shrink-0 border ${mat.active ? 'ring-2 ring-amber-500/50' : ''}`}
+                        style={{
+                          backgroundColor: mat.color,
+                          borderColor: mat.active ? '#ff5500' : 'rgba(255,255,255,0.2)',
+                        }}
+                      />
+                      <span className={`text-xs font-mono ${mat.active ? 'text-amber-400 font-medium' : 'text-zinc-400'}`}>
+                        {mat.name}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="z-10">
+                  <h3 className="text-base font-normal tracking-tight text-white group-hover:text-amber-400 transition-colors">
+                    المظهر واللمسة النهائية
+                  </h3>
+                  <p className="mt-1 text-xs font-light leading-relaxed text-zinc-400">
+                    تطبيق خامات تحاكي الواقع الفيزيائي مع خرائط UV مولدة تلقائياً.
+                  </p>
+                </div>
+              </div>
+
+            </div>
+
+            {/* Bottom Row: Export + Pipeline */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5 lg:gap-6 mt-4 sm:mt-5 lg:mt-6">
+
+              {/* CARD 4: Output Formats */}
+              <div className="bento-card group relative rounded-3xl bg-zinc-950/60 border border-white/[0.08] hover:border-amber-500/35 p-6 sm:p-7 flex flex-col justify-between overflow-hidden backdrop-blur-xl shadow-[inset_0_1px_0_0_rgba(255,255,255,0.1)]">
+                <div className="flex items-center justify-between z-10">
+                  <span className="text-[11px] font-mono text-zinc-400 uppercase tracking-wider">
+                    تصدير النماذج
+                  </span>
+                  <span className="text-[10px] font-mono text-zinc-500">جاهز للتنزيل</span>
+                </div>
+
+                <div className="my-5 flex flex-col gap-2.5 z-10">
+                  {[
+                    { ext: 'GLB', desc: 'تنسيق glTF ثنائي — جاهز للويب والواقع المعزز', active: true },
+                    { ext: 'OBJ', desc: 'تنسيق Wavefront — توافق شامل مع كافة البرامج', active: false },
+                    { ext: 'PNG', desc: 'رندرات استوديو 4K (4 زوايا تصوير)', active: false },
+                  ].map((fmt) => (
+                    <div
+                      key={fmt.ext}
+                      className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all duration-200 cursor-pointer ${
+                        fmt.active
+                          ? 'bg-amber-500/10 border border-amber-500/35'
+                          : 'bg-zinc-900/50 border border-white/[0.06] hover:border-white/15'
+                      }`}
+                    >
+                      <span
+                        className={`text-xs font-mono font-semibold px-2 py-0.5 rounded-md ${
+                          fmt.active ? 'bg-amber-500 text-black' : 'bg-zinc-800 text-zinc-300'
+                        }`}
+                      >
+                        {fmt.ext}
+                      </span>
+                      <span className="text-[11px] font-light text-zinc-400">
+                        {fmt.desc}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="z-10">
+                  <h3 className="text-base font-normal tracking-tight text-white group-hover:text-amber-400 transition-colors">
+                    تصدير فوري بنقرة واحدة
+                  </h3>
+                  <p className="mt-1 text-xs font-light leading-relaxed text-zinc-400">
+                    تحميل أصول جاهزة للإنتاج والاستخدام المباشر — بدون الحاجة لأي معالجة إضافية.
+                  </p>
+                </div>
+              </div>
+
+              {/* CARD 5: Pipeline */}
+              <div className="bento-card group relative rounded-3xl bg-zinc-950/60 border border-white/[0.08] hover:border-amber-500/35 p-6 sm:p-7 flex flex-col justify-between overflow-hidden backdrop-blur-xl shadow-[inset_0_1px_0_0_rgba(255,255,255,0.1)]">
+                <div className="flex items-center justify-between z-10">
+                  <span className="text-[11px] font-mono text-zinc-400 uppercase tracking-wider">
+                    مراحل المعالجة
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 text-[10px] font-mono text-emerald-400 bg-emerald-950/40 border border-emerald-800/40 px-2.5 py-0.5 rounded-full">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    جاهز للعمل
+                  </span>
+                </div>
+
+                <div className="my-5 flex flex-col gap-3 z-10">
+                  {[
+                    { step: '01', label: 'تحليل الوصف النصي', status: 'done' },
+                    { step: '02', label: 'توليد الهيكل الشبكي (Mesh)', status: 'active' },
+                    { step: '03', label: 'تطبيق الخامات والإضاءة', status: 'pending' },
+                    { step: '04', label: 'تصدير الأصول ثلاثية الأبعاد', status: 'pending' },
+                  ].map((s, i, arr) => (
+                    <div key={s.step} className="flex items-center gap-3">
+                      <div className="flex flex-col items-center">
+                        <span
+                          className={`w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-mono font-semibold ${
+                            s.status === 'active'
+                              ? 'bg-amber-500 text-black shadow-[0_0_12px_rgba(255,85,0,0.5)]'
+                              : s.status === 'done'
+                              ? 'bg-emerald-950/80 text-emerald-400 border border-emerald-800/40'
+                              : 'bg-zinc-900 text-zinc-500 border border-white/[0.06]'
+                          }`}
+                        >
+                          {s.status === 'done' ? '✓' : s.step}
+                        </span>
+                        {i < arr.length - 1 && (
+                          <span
+                            className={`w-0.5 h-4 mt-1 ${
+                              s.status === 'done' ? 'bg-emerald-500/60' : 'bg-zinc-800'
+                            }`}
+                          />
+                        )}
+                      </div>
+                      <span
+                        className={`text-xs font-mono ${
+                          s.status === 'active'
+                            ? 'text-amber-400 font-medium'
+                            : s.status === 'done'
+                            ? 'text-zinc-300'
+                            : 'text-zinc-500'
+                        }`}
+                      >
+                        {s.label}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="z-10">
+                  <h3 className="text-base font-normal tracking-tight text-white group-hover:text-amber-400 transition-colors">
+                    خط معالجة متكامل من 4 خطوات
+                  </h3>
+                  <p className="mt-1 text-xs font-light leading-relaxed text-zinc-400">
+                    الوصف النصي ← الهيكل الشبكي ← الخامات ← التصدير، كل ذلك خلال أقل من 30 ثانية.
+                  </p>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </section>
+
+        {/* ═══════════════════════════════════════════════════════════════════
+            CHAPTER 04 — THE GRAND FINALE (الفصل الرابع: ختام الرحلة والبداية)
+            ═══════════════════════════════════════════════════════════════════ */}
+        <section
+          ref={finaleReveal.ref}
+          className={`reveal-section ${finaleReveal.revealed ? 'revealed' : ''} relative z-10 w-full py-28 sm:py-36 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto`}
+        >
+          {/* Atmospheric glow */}
+          <div className="pointer-events-none absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[350px] bg-[radial-gradient(ellipse_at_center,rgba(255,85,0,0.08),transparent_70%)] blur-3xl" />
+
+          <div className="relative z-10 rounded-3xl bg-zinc-950/70 border border-white/[0.08] p-8 sm:p-14 lg:p-20 text-center overflow-hidden backdrop-blur-2xl shadow-[0_20px_80px_rgba(0,0,0,0.8),inset_0_1px_0_0_rgba(255,255,255,0.1)]">
+            
+            <span className="section-chapter-number">الفصل الرابع والأخير</span>
+            <h2 className="section-narrative max-w-3xl mx-auto">
+              ابدأ في كتابة <span className="accent">قصتك الرقمية</span> القادمة
+            </h2>
+            <p className="mt-4 text-zinc-400 font-light text-sm sm:text-base max-w-xl mx-auto leading-relaxed">
+              انضم إلى آلاف المبدعين والمهندسين الذين يعيدون ابتكار التجربة الرقمية مع دريم فريم AI.
+            </p>
+
+            {/* Action buttons */}
+            <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
+              <button
+                onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+                className="hero-cta"
+              >
+                <span>ابدأ الآن مجاناً</span>
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M5 12h14M12 5l7 7-7 7" />
+                </svg>
+              </button>
+
+              <button
+                onClick={() => {
+                  const el = document.getElementById('chapter-tech');
+                  el?.scrollIntoView({ behavior: 'smooth' });
+                }}
+                className="px-6 py-3 rounded-full text-xs sm:text-sm font-medium text-zinc-300 border border-white/10 hover:border-white/30 hover:text-white transition-all bg-white/[0.03] hover:bg-white/[0.08]"
+              >
+                استكشف منظومة الأدوات
+              </button>
+            </div>
+
+            {/* Metrics ribbon */}
+            <div className="mt-14 pt-10 border-t border-white/[0.06] grid grid-cols-2 sm:grid-cols-4 gap-6 max-w-3xl mx-auto">
+              <div>
+                <div className="text-2xl sm:text-3xl font-mono text-white font-semibold">150+</div>
+                <div className="text-[11px] text-zinc-500 mt-1 font-mono">إطار سينمائي متزامن</div>
+              </div>
+              <div>
+                <div className="text-2xl sm:text-3xl font-mono text-amber-500 font-semibold">&lt; 30s</div>
+                <div className="text-[11px] text-zinc-500 mt-1 font-mono">زمن توليد النموذج</div>
+              </div>
+              <div>
+                <div className="text-2xl sm:text-3xl font-mono text-white font-semibold">60 FPS</div>
+                <div className="text-[11px] text-zinc-500 mt-1 font-mono">سلاسة العرض والتفاعل</div>
+              </div>
+              <div>
+                <div className="text-2xl sm:text-3xl font-mono text-emerald-400 font-semibold">99.98%</div>
+                <div className="text-[11px] text-zinc-500 mt-1 font-mono">استقرار الأداء والجاهزية</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ═══════════════════════════════════════════════════════════════════
+            FOOTER — Unified cinematic footer
+            ═══════════════════════════════════════════════════════════════════ */}
+        <footer className="relative z-10 w-full border-t border-white/[0.06] bg-black/90 backdrop-blur-md py-12 px-4 sm:px-6 lg:px-8">
+          <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-6">
+            <div className="flex items-center gap-3">
+              <div className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse" />
+              <span className="font-medium tracking-wide text-sm text-white">دريم فريم AI</span>
+              <span className="text-zinc-600 text-xs font-mono">|</span>
+              <span className="text-zinc-400 text-xs font-light">نصنع المستحيل في كل بكسل</span>
+            </div>
+
+            <div className="flex items-center gap-6 text-xs text-zinc-400 font-mono">
+              <button
+                onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+                className="hover:text-amber-400 transition-colors flex items-center gap-1.5"
+              >
+                <span>العودة للبداية</span>
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M18 15l-6-6-6 6" />
+                </svg>
+              </button>
+              <span>© 2026 دريم فريم. جميع الحقوق محفوظة.</span>
+            </div>
+          </div>
+        </footer>
       </div>
-    </main>
+    </div>
   );
 }
